@@ -20,10 +20,12 @@
 3.  Select a Controller (e.g., Right Hand).
 4.  Add Plugin -> Select `ProximityGrab.cs`.
 
-## 🛠️ Development
-*   **Versioning**: This project uses **Integer Versioning** (e.g., `v1`, `v2`, `v3`).
-    *   **Do not** use SemVer (e.g., `v1.0`). The GitHub Workflow expects a single number to generate the `.var` package version.
-*   **Structure**: The main script is located at `Custom/Scripts/FivelSystems/ProximityGrab/ProximityGrab.cs`.
+## 🎮 Usage
+1.  Add the **ProximityGrab** plugin to an empty Atom.
+2.  **Parent** this empty Atom to your hand (or any object you want to grab *with*).
+3.  Use the plugin UI to adjust the **Grab Radius** (Green Sphere visualization).
+4.  Move your hand near another object (e.g., a prop or person).
+5.  Click **Attach** or trigger the **Grab** action!
 
 ## 🤝 Credits
 *   **Kimowal**: Core physics logic derived from `PhysicsAttachmentEngine` (CC BY-SA).
