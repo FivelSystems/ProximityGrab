@@ -4,10 +4,10 @@
    "packageName": "ProximityGrab",
    "standardReferenceVersionOption": "Latest",
    "scriptReferenceVersionOption": "Exact",
-   "description": "A robust Proximity Grab system for VaM.\nAllows hand/object attachment via collision sphere (overlap) instead of raycast.\n\nFeatures:\n- OverlapSphere detection (Sphere Trigger)\n- Visualized Grab Radius (Green Wireframe)\n- Attach/Detach UI Buttons & Triggers\n- 'Attach to Parent' Filtering (Smart Logic)\n- Configurable Radius, Offsets, and Physics Tightness (Soft/Firm/Lock)\n\nCredits:\n- Kimowal (PhysicsAttachmentEngine Logic)\n- Skynet (Rigify Visuals Pattern)\n- acidbubbles (Template)",
-   "credits": "Kimowal, Skynet, acidbubbles",
+   "description": "A robust Proximity Grab system for VaM.\nAllows hand/object attachment via collision sphere (overlap), visualizing the grab radius.\n\nFeatures:\n- OverlapSphere detection (Sphere Trigger)\n- Visualized Grab Radius (Green Wireframe)\n- Attach/Detach UI Buttons & Triggers\n- 'Attach to Parent' Filtering (Smart Logic)\n- Configurable Radius, Offsets, and Physics Tightness (Soft/Firm/Lock)\n\nCredits:\n- Kimowal (PhysicsAttachmentEngine Logic)\n- Skynet (Rigify Visuals Pattern)\n- acidbubbles (Template)",
+   "credits": "Kimowal, Skynet, acidbubbles, Antigravity + Gemini",
    "instructions": "1. Add Plugin to an empty Atom.\n2. Parent the new empty Atom to a `hand` or anything that behaves like a `grabber`.\n3. Use UI to Adjust Radius (Green Sphere).\n3. Move your `hand` near another Atom (i.e. a prop with physics enabled or a person's body).\n4. Click 'Attach' or Trigger 'Grab'.",
-   "promotionalLink": "https://github.com/FivelSystems/ProximityGrab",
+   "promotionalLink": "https://buymeacoffee.com/fivelsystems",
    "programVersion": "1.22.0.13",
    "contentList": [
       "Custom/Scripts/FivelSystems/ProximityGrab/ProximityGrab.cs"

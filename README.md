@@ -1,6 +1,6 @@
 # Proximity Grab for Virt-A-Mate
 
-**Proximity Grab** is a plugin that allows you to easily grab and attach objects using a proximity sphere instead of a precise raycast. It uses physics-based joints for smooth, natural movement.
+**Proximity Grab** allows you to grab and attach objects using a configurable proximity sphere. It uses physics-based joints for smooth, natural movement.
 
 🔗 **[Virt-A-Mate Hub Link](https://hub.virtamate.com/resources/)** (Pending)
 
@@ -22,6 +22,11 @@
 *   **Skynet**: Visualization patterns derived from `Rigify` (CC BY).
 *   **acidbubbles**: Project bootstrapped using `vam-plugin-template` (MIT).
 *   **FivelSystems**: Proximity logic and UI implementation.
+*   **Antigravity + Gemini**: AI Assistance & Code Generation.
+
+## Support
+If you like this plugin, consider buying me a coffee! ☕
+[**buymeacoffee.com/fivelsystems**](https://buymeacoffee.com/fivelsystems)
 
 ## License
 This project is licensed under **CC BY-SA 4.0**.
@@ -33,7 +38,7 @@ This project is licensed under **CC BY-SA 4.0**.
 
 [size=5][b]Proximity Grab for Virt-A-Mate[/b][/size]
 
-[b]Proximity Grab[/b] is a plugin that allows you to easily grab and attach objects using a proximity sphere instead of a precise raycast. It uses physics-based joints for smooth, natural movement.
+[b]Proximity Grab[/b] allows you to grab and attach objects using a configurable proximity sphere. It uses physics-based joints for smooth, natural movement.
 
 [size=4][b]Features[/b][/size]
 [list]
@@ -50,7 +55,12 @@ This project is licensed under **CC BY-SA 4.0**.
 [*] [b]Skynet[/b]: Visualization patterns derived from [i]Rigify[/i] (CC BY).
 [*] [b]acidbubbles[/b]: Project bootstrapped using [i]vam-plugin-template[/i] (MIT).
 [*] [b]FivelSystems[/b]: Proximity logic and UI implementation.
+[*] [b]Antigravity + Gemini[/b]: AI Assistance & Code Generation.
 [/list]
+
+[size=4][b]Support[/b][/size]
+If you like this plugin, consider buying me a coffee! ☕
+[url=https://buymeacoffee.com/fivelsystems]buymeacoffee.com/fivelsystems[/url]
 
 [size=4][b]License[/b][/size]
 This project is licensed under [b]CC BY-SA 4.0[/b].
