@@ -5,7 +5,7 @@
 
 **Proximity Grab** allows you to grab and attach objects using a configurable proximity sphere. It uses physics-based joints for smooth, natural movement.
 
-🔗 **[Virt-A-Mate Hub Link](https://hub.virtamate.com/resources/)** (Pending)
+🔗 **[Virt-A-Mate Hub Link](https://hub.virtamate.com/resources/proximitygrab.64126/)**
 
 ## ✨ Features
 *   🟢 **Proximity Detection**: Uses a sphere overlap to find targets near your hand. No aiming required!
