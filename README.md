@@ -60,6 +60,15 @@ This project is licensed under **CC BY-SA 4.0**.
 [*] 📏 [b]Adjustable Offsets[/b]: Fine-tune the grab position relative to the controller.
 [/list]
 
+[size=4][b]Usage[/b][/size]
+[list=1]
+[*] Add the [b]ProximityGrab[/b] plugin to an empty Atom.
+[*] [b]Parent[/b] this empty Atom to your hand (or any object you want to grab [i]with[/i]).
+[*] Use the plugin UI to adjust the [b]Grab Radius[/b] (Green Sphere visualization).
+[*] Move your hand near another object (e.g., a prop or person).
+[*] Click [b]Attach[/b] or trigger the [b]Grab[/b] action!
+[/list]
+
 [size=4][b]Credits[/b][/size]
 [list]
 [*] [b]Kimowal[/b]: Core physics logic derived from [i]PhysicsAttachmentEngine[/i] (CC BY-SA).
