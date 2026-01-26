@@ -18,17 +18,16 @@ jobs:
     - name: Zip the release package
       id: zip
       run: |
-        mkdir -p publish/Custom/Scripts/Author/MyPlugin
-        cp *.cs publish/Custom/Scripts/Author/MyPlugin/
+        mkdir -p publish
+        cp -r Custom publish/
         cp meta.json publish/
-        sed -i 's/v0.0.0/${{ steps.get_version.outputs.VERSION }}/' publish/meta.json
         cd publish
-        zip -r "Author.MyPlugin.${{ github.run_number }}.var" *
+        zip -r "FivelSystems.ProximityGrab.${{ github.run_number }}.var" *
     - name: GitHub release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
       with:
         draft: true
-        files: publish/Author.MyPlugin.${{ github.run_number }}.var
+        files: publish/FivelSystems.ProximityGrab.${{ github.run_number }}.var
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

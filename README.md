@@ -1,47 +1,58 @@
-# Virt-A-Mate Plugin Template for VSCode
+# Proximity Grab for Virt-A-Mate
 
-## What you will need
+**Proximity Grab** is a plugin that allows you to easily grab and attach objects using a proximity sphere instead of a precise raycast. It uses physics-based joints for smooth, natural movement.
 
-- [Visual Studio Code](https://code.visualstudio.com/) to edit your plugins
-- [.NET Core SDK](https://dotnet.microsoft.com/download) to compile your code (optional)
-- [.NET Framework 3.5 Targeting Pack](https://stackoverflow.com/a/47621616/154480) (you might already have this)
-- [Virt-A-Mate](https://www.patreon.com/meshedvr/) to use your plugins
+🔗 **[Virt-A-Mate Hub Link](https://hub.virtamate.com/resources/)** (Pending)
 
-## Get this template
+## Features
+*   **Proximity Detection**: Uses a sphere overlap to find targets near your hand. No aiming required!
+*   **Visual Feedback**: Draws a green wireframe sphere to show exactly what is in range.
+*   **Smart Parenting**: Intelligently ignores the parent object if attached to a hand (so you don't grab your own chest).
+*   **Physics Presets**: Choose between Soft, Firm, or Locked joints.
+*   **Adjustable Offsets**: Fine-tune the grab position relative to the controller.
 
-First of all, decide what your author name will be, and what your plugin name will be. From now on, replace `Author` and `MyPlugin` by your selected name. I suggest your keep those simple without any special characters.
+## Installation
+1.  Download the `ProximityGrab.var` package (or scripts).
+2.  Place in your `AddonPackages` (or `Custom/Scripts`) folder.
+3.  Select a Controller (e.g., Right Hand).
+4.  Add Plugin -> Select `ProximityGrab.cs`.
 
-- If you have a GitHub account (recommended), click on `Use this template` on the [vam-plugin-template](https://github.com/acidbubbles/vam-plugin-template). It will create your own copy. You can also [download](https://github.com/acidbubbles/vam-plugin-template/archive/master.zip) this repository.
-- Clone (or unzip) this repo under `(VaM install path)\Custom\Scripts\Author\MyPlugin`, replacing `Author` and `MyPlugin` by yours, so that the `MyPlugin.cs` is directly under the `MyPlugin` folder.
-
-You should now be able to open the project in vscode by using `File`, `Open Folder` and select the `MyPlugin` folder.
-
-## Adapt the template
-
-- Rename the `MyPlugin.cs` and `MyPlugin.csproj` to match your plugin name.
-- Replace in files (<kbd>ctrl</kbd> + <kbd>shift</kbd> + <kbd>h</kbd>) all occurences of `Author` and `MyPlugin` by yours.
-- In `meta.json`, fill in the description (keep `v0.0.0` if you plan on using GitHub Actions), credits, instructions and promotionalLink. You might also want to chage the `licenseType`, if you wish.
-- Replace the content of `README.md` by your own content.
-- Replace the author name in [LICENSE.md](LICENSE.md) file to put your own name (it's all right, you have my blessing!)
-
-## About `MVRScript`
-
-The plugin is really a Unity [MonoBehavior](https://docs.unity3d.com/ScriptReference/MonoBehaviour.html), which means you can use methods like `Update`, `FixedUpdate`, `OnEnable`, `OnDisable` and `OnDestroy`. `Init` however is called by Virt-A-Mate.
-
-Keep in mind however that `OnEnable` will be called _before_ `Init`.
-
-## Validate locally
-
-You can run `dotnet build` in the plugin folder, and it'll show you any compilation errors. This is faster than going in VaM to do so! I recommend installing .NET 5 or more recent.
-
-## Package var using GitHub Actions
-
-If you use `GitHub`, you can push a tag with the naming convention `v0.0.0`, and it will automatically create a release draft. You can then edit it (e.g. add a description) and publish it.
-
-## Learning about Git
-
-There are tons of references out there, you might want to look at [GitHub Learning Lab](https://lab.github.com/). Learning Git is _really_ worth your time.
+## Credits
+*   **Kimowal**: Core physics logic derived from `PhysicsAttachmentEngine` (CC BY-SA).
+*   **Skynet**: Visualization patterns derived from `Rigify` (CC BY).
+*   **acidbubbles**: Project bootstrapped using `vam-plugin-template` (MIT).
+*   **FivelSystems**: Proximity logic and UI implementation.
 
 ## License
+This project is licensed under **CC BY-SA 4.0**.
 
-[MIT](LICENSE.md)
+---
+
+<details>
+<summary><b>VaM Hub BBCode (Click to Expand)</b></summary>
+
+[size=5][b]Proximity Grab for Virt-A-Mate[/b][/size]
+
+[b]Proximity Grab[/b] is a plugin that allows you to easily grab and attach objects using a proximity sphere instead of a precise raycast. It uses physics-based joints for smooth, natural movement.
+
+[size=4][b]Features[/b][/size]
+[list]
+[*] [b]Proximity Detection[/b]: Uses a sphere overlap to find targets near your hand. No aiming required!
+[*] [b]Visual Feedback[/b]: Draws a green wireframe sphere to show exactly what is in range.
+[*] [b]Smart Parenting[/b]: Intelligently ignores the parent object if attached to a hand (so you don't grab your own chest).
+[*] [b]Physics Presets[/b]: Choose between Soft, Firm, or Locked joints.
+[*] [b]Adjustable Offsets[/b]: Fine-tune the grab position relative to the controller.
+[/list]
+
+[size=4][b]Credits[/b][/size]
+[list]
+[*] [b]Kimowal[/b]: Core physics logic derived from [i]PhysicsAttachmentEngine[/i] (CC BY-SA).
+[*] [b]Skynet[/b]: Visualization patterns derived from [i]Rigify[/i] (CC BY).
+[*] [b]acidbubbles[/b]: Project bootstrapped using [i]vam-plugin-template[/i] (MIT).
+[*] [b]FivelSystems[/b]: Proximity logic and UI implementation.
+[/list]
+
+[size=4][b]License[/b][/size]
+This project is licensed under [b]CC BY-SA 4.0[/b].
+
+</details>

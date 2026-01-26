@@ -1,2 +1,15 @@
+# Exclude Examples folder (Reference only)
+Examples/
+
+# Exclude IDE folders
+.vscode/
+.vs/
+*.user
+*.suo
+
+# Exclude EditorConfig
+.editorconfig
+
+# Exclude Build/Temp
 bin/
 obj/
