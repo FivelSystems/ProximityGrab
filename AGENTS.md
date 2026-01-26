@@ -20,6 +20,10 @@ This file contains rules and context for AI Agents working on this repository.
     *   **NO** SemVer (e.g., `v1.0.1` is forbidden).
     *   **Reason**: The workflow strips the `v` and uses the number directly compatibility with VaM's integer-based package system.
     *   Update `pluginLabelJSON.val` in code to match.
+3.  **CHANGELOG.md**:
+    *   Must follow [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) standards.
+    *   Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
+    *   Update this file with every notable change.
 
 ## VaM Specific API Notes
 *   **Parenting**: Atoms are "linked" via `mainController.linkToRB`.
