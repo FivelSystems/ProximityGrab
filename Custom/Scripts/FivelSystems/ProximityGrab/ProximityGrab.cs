@@ -56,6 +56,8 @@ namespace FivelSystems
         private Rigidbody cachedOriginRB;
         // Visualization
         private ProximityVisualizer visualizer;
+        // Logic
+        private ProximityScanner scanner;
 
         // UI for active attachments
         private List<UIDynamic> attachmentUIElements = new List<UIDynamic>();
@@ -145,6 +147,9 @@ namespace FivelSystems
                 // Initialize Visualization
                 visualizer = new ProximityVisualizer(this);
                 visualizer.SetVisibility(showDebugSphere.val);
+
+                // Initialize Scanner
+                scanner = new ProximityScanner((msg) => SuperController.LogMessage(msg));
                 
                 CreateSpacer(false).height = 15f;
 
@@ -287,71 +292,8 @@ namespace FivelSystems
                 Vector3 center = GetGrabCenter();
                 float radius = grabRadius.val;
 
-                // OverlapSphere
-                Collider[] hits = Physics.OverlapSphere(center, radius);
-                
-                // Sort by distance to center
-                System.Array.Sort(hits, (x, y) => {
-                    float dX = Vector3.SqrMagnitude(x.transform.position - center);
-                    float dY = Vector3.SqrMagnitude(y.transform.position - center);
-                    return dX.CompareTo(dY);
-                });
-
-                Rigidbody targetRB = null;
-
-                foreach (var hit in hits)
-                {
-                    Rigidbody rb = hit.attachedRigidbody;
-                    if (rb == null) continue;
-
-                    // Logic:
-                    // 1. If this plugin atom is "linked" to another object (Parented in VaM UI), exclude that parent.
-                    
-                    bool shouldExclude = false;
-                    
-                    Atom parentAtom = null;
-
-                    // Method A: Check Physics Link (The "VaM Way" for parenting Atoms)
-                    // We check if the main controller is physically linked to another Rigidbody.
-                    if (containingAtom.mainController != null)
-                    {
-                         FreeControllerV3 mainCtrl = containingAtom.mainController;
-                         if (mainCtrl != null && mainCtrl.linkToRB != null)
-                         {
-                             parentAtom = GetAtomForRigidbody(mainCtrl.linkToRB);
-                             // Debug info
-                             if (showDebugSphere.val && parentAtom != null)
-                                 SuperController.LogMessage($"ProximityGrab: Linked to Parent Atom: {parentAtom.uid}");
-                         }
-                    }
-
-                    // REMOVED: Transform.parent check (Method B) as it is incorrect for VaM Atoms.
-
-                    if (parentAtom != null)
-                    {
-                         // We found the Parent Atom.
-                         Atom hitAtom = GetAtomForRigidbody(rb);
-                         // If the hit object belongs to the Parent Atom, ignore it.
-                         if (hitAtom == parentAtom)
-                         {
-                             shouldExclude = true;
-                             if (showDebugSphere.val) SuperController.LogMessage($"ProximityGrab: Ignored {rb.name} (Linked Parent: {parentAtom.uid})");
-                         }
-                    }
-
-                    // Also exclude the specific RB we are using as the Origin (the hand itself)
-                    if (rb == cachedOriginRB) 
-                    {
-                        shouldExclude = true;
-                         if (showDebugSphere.val) SuperController.LogMessage($"ProximityGrab: Ignored {rb.name} (Origin RB)");
-                    }
-
-                    if (!shouldExclude)
-                    {
-                        targetRB = rb;
-                        break;
-                    }
-                }
+                // Use Scanner to find target
+                Rigidbody targetRB = scanner.ScanForTarget(center, radius, containingAtom, cachedOriginRB, showDebugSphere.val);
 
                 if (targetRB == null)
                 {
@@ -373,7 +315,7 @@ namespace FivelSystems
                 string targetName = targetRB.name;
                 string targetAtomName = "Unknown";
                 
-                Atom targetAtom = GetAtomForRigidbody(targetRB);
+                Atom targetAtom = scanner.GetAtomForRigidbody(targetRB);
                 if (targetAtom != null) targetAtomName = targetAtom.uid;
 
                 string offsetKey = string.Format("{0}:{1}→{2}:{3}", containingAtom.uid, sourceName, targetAtomName, targetName);
@@ -427,17 +369,7 @@ namespace FivelSystems
 
         // --- Helpers ---
 
-        private Atom GetAtomForRigidbody(Rigidbody rb)
-        {
-            Transform t = rb.transform;
-            while (t != null)
-            {
-                Atom a = t.GetComponent<Atom>();
-                if (a != null) return a;
-                t = t.parent;
-            }
-            return null;
-        }
+
 
         private List<string> matchObjects(Atom atom)
         {
@@ -834,6 +766,97 @@ namespace FivelSystems
                 lr.loop = true;
             }
             return lr;
+            }
+
+    /// <summary>
+    /// Handles finding valid targets in range (Scanning logic)
+    /// </summary>
+    public class ProximityScanner
+    {
+        private Action<string> logger;
+
+        public ProximityScanner(Action<string> logMethod)
+        {
+            logger = logMethod;
         }
+
+        public Rigidbody ScanForTarget(Vector3 center, float radius, Atom sourceAtom, Rigidbody sourceRB, bool debug)
+        {
+            // OverlapSphere
+            Collider[] hits = Physics.OverlapSphere(center, radius);
+            
+            // Sort by distance to center
+            System.Array.Sort(hits, (x, y) => {
+                float dX = Vector3.SqrMagnitude(x.transform.position - center);
+                float dY = Vector3.SqrMagnitude(y.transform.position - center);
+                return dX.CompareTo(dY);
+            });
+
+            foreach (var hit in hits)
+            {
+                Rigidbody rb = hit.attachedRigidbody;
+                if (rb == null) continue;
+
+                if (IsValidTarget(rb, sourceAtom, sourceRB, debug))
+                {
+                    return rb;
+                }
+            }
+            return null;
+        }
+
+        private bool IsValidTarget(Rigidbody rb, Atom sourceAtom, Rigidbody sourceRB, bool debug)
+        {
+            // Logic:
+            // 1. If this plugin atom is "linked" to another object (Parented in VaM UI), exclude that parent.
+            Atom parentAtom = null;
+
+            // Method A: Check Physics Link (The "VaM Way" for parenting Atoms)
+            if (sourceAtom.mainController != null)
+            {
+                FreeControllerV3 mainCtrl = sourceAtom.mainController;
+                if (mainCtrl != null && mainCtrl.linkToRB != null)
+                {
+                    parentAtom = GetAtomForRigidbody(mainCtrl.linkToRB);
+                    if (debug && parentAtom != null)
+                        logger?.Invoke($"ProximityGrab: Linked to Parent Atom: {parentAtom.uid}");
+                }
+            }
+
+            if (parentAtom != null)
+            {
+                // We found the Parent Atom.
+                Atom hitAtom = GetAtomForRigidbody(rb);
+                // If the hit object belongs to the Parent Atom, ignore it.
+                if (hitAtom == parentAtom)
+                {
+                    if (debug) logger?.Invoke($"ProximityGrab: Ignored {rb.name} (Linked Parent: {parentAtom.uid})");
+                    return false;
+                }
+            }
+
+            // Also exclude the specific RB we are using as the Origin (the hand itself)
+            if (rb == sourceRB) 
+            {
+                if (debug) logger?.Invoke($"ProximityGrab: Ignored {rb.name} (Origin RB)");
+                return false;
+            }
+
+            return true;
+        }
+
+        public Atom GetAtomForRigidbody(Rigidbody rb)
+        {
+            Transform t = rb.transform;
+            while (t != null)
+            {
+                Atom a = t.GetComponent<Atom>();
+                if (a != null) return a;
+                t = t.parent;
+            }
+            return null;
+        }
+    }
+}
     }
 }
