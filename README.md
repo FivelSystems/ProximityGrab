@@ -1,31 +1,36 @@
 # Proximity Grab for Virt-A-Mate
 ![License](https://img.shields.io/badge/License-CC_BY--SA_4.0-lightgrey.svg)
-![Version](https://img.shields.io/badge/Version-1.0-blue.svg)
+![Version](https://img.shields.io/badge/Version-2.0-blue.svg)
 [![Support](https://img.shields.io/badge/Support-Buy_Me_A_Coffee-orange.svg)](https://buymeacoffee.com/fivelsystems)
 
-**Proximity Grab** allows you to grab and attach objects using a configurable proximity sphere. It uses physics-based joints for smooth, natural movement.
+**Proximity Grab** allows you to grab onto other objects (Atoms) simply by being near them and activating a trigger. It uses physics joints to create stable, customizable attachments, perfect for "gluing" hands to hips, holding props, or creating dynamic interactions without complex parenting.
 
 🔗 **[Virt-A-Mate Hub Link](https://hub.virtamate.com/resources/proximitygrab.64126/)**
 
 ## ✨ Features
-*   🟢 **Proximity Detection**: Uses a sphere overlap to find targets near your hand. No aiming required!
-*   👁️ **Visual Feedback**: Draws a green wireframe sphere to show exactly what is in range.
-*   🧠 **Smart Parenting**: Intelligently ignores the parent object if attached to a hand (so you don't grab your own chest).
-*   ⚙️ **Physics Presets**: Choose between **Soft**, **Firm**, or **Locked** joints.
-*   📏 **Adjustable Offsets**: Fine-tune the grab position relative to the controller.
+*   🟢 **Easy Grabbing**: Select a body part (e.g., `lHand`) and click "Grab". The plugin scans for the nearest rigidbody.
+*   👁️ **Visual Feedback**: Green sphere = Scanning, Blue sphere = Holding.
+*   🧠 **Smart Filtering**: Safely ignores internal `PhysicsMeshJoint` artifacts and Auto-Targets Person physics.
+*   ⚙️ **Customizable Physics**: Presets for Stiffness (Soft/Firm/Lock) and Modes (Grab/Glue/Follow).
+*   🔧 **Power User Tools**: Toggle support for grabbing Triggers or internal MeshJoints.
 
 ## 🚀 Installation
-1.  Download the `ProximityGrab.var` package (or scripts).
+1.  Download the `ProximityGrab.var` package (or `.cs` file).
 2.  Place in your `AddonPackages` (or `Custom/Scripts`) folder.
-3.  Select a Controller (e.g., Right Hand).
+3.  Select an Atom (e.g., a Person).
 4.  Add Plugin -> Select `ProximityGrab.cs`.
 
 ## 🎮 Usage
-1.  Add the **ProximityGrab** plugin to an empty Atom.
-2.  **Parent** this empty Atom to your hand (or any object you want to grab *with*).
-3.  Use the plugin UI to adjust the **Grab Radius** (Green Sphere visualization).
-4.  Move your hand near another object (e.g., a prop or person).
-5.  Click **Attach** or trigger the **Grab** action!
+1.  **Select Origin**: Top-left selector (e.g., `rHand`).
+2.  **Adjust Radius**: Helper sphere shows your reach.
+3.  **Grab**: Click **Grab** or use the **Toggle Grab** button.
+    *   Finds nearest valid object in range.
+    *   Visual changes to **Blue**.
+4.  **Release**: Click **Release** to detach.
+
+### Advanced
+*   **Grab MeshJoints**: Enable to debug/grab internal simulation joints.
+*   **Grab Triggers**: Enable to grab trigger colliders.
 
 ## 🤝 Credits
 *   **Kimowal**: Core physics logic derived from `PhysicsAttachmentEngine` (CC BY-SA).
@@ -49,33 +54,21 @@ This project is licensed under **CC BY-SA 4.0**.
 
 [size=5][b]Proximity Grab for Virt-A-Mate[/b][/size]
 
-[b]Proximity Grab[/b] allows you to grab and attach objects using a configurable proximity sphere. It uses physics-based joints for smooth, natural movement.
+[b]Proximity Grab[/b] allows you to grab onto other objects (Atoms) simply by being near them and activating a trigger. It uses physics joints to create stable, customizable attachments.
 
 [size=4][b]Features[/b][/size]
 [list]
-[*] 🟢 [b]Proximity Detection[/b]: Uses a sphere overlap to find targets near your hand. No aiming required!
-[*] 👁️ [b]Visual Feedback[/b]: Draws a green wireframe sphere to show exactly what is in range.
-[*] 🧠 [b]Smart Parenting[/b]: Intelligently ignores the parent object if attached to a hand (so you don't grab your own chest).
-[*] ⚙️ [b]Physics Presets[/b]: Choose between Soft, Firm, or Locked joints.
-[*] 📏 [b]Adjustable Offsets[/b]: Fine-tune the grab position relative to the controller.
-[/list]
-
-[size=4][b]Usage[/b][/size]
-[list=1]
-[*] Add the [b]ProximityGrab[/b] plugin to an empty Atom.
-[*] [b]Parent[/b] this empty Atom to your hand (or any object you want to grab [i]with[/i]).
-[*] Use the plugin UI to adjust the [b]Grab Radius[/b] (Green Sphere visualization).
-[*] Move your hand near another object (e.g., a prop or person).
-[*] Click [b]Attach[/b] or trigger the [b]Grab[/b] action!
+[*] 🟢 [b]Easy Grabbing[/b]: Select a body part and click Grab.
+[*] 👁️ [b]Visual Feedback[/b]: Green sphere = Scanning, Blue sphere = Holding.
+[*] 🧠 [b]Smart Filtering[/b]: Safely ignores internal Physics artifacts.
+[*] ⚙️ [b]Customizable Physics[/b]: Presets for Stiffness and Modes.
 [/list]
 
 [size=4][b]Credits[/b][/size]
 [list]
-[*] [b]Kimowal[/b]: Core physics logic derived from [i]PhysicsAttachmentEngine[/i] (CC BY-SA).
-[*] [b]Skynet[/b]: Visualization patterns derived from [i]Rigify[/i] (CC BY).
-[*] [b]acidbubbles[/b]: Project bootstrapped using [i]vam-plugin-template[/i] (MIT).
-[*] [b]FivelSystems[/b]: Proximity logic and UI implementation.
-[*] [b]Antigravity + Gemini[/b]: AI Assistance & Code Generation.
+[*] [b]Kimowal[/b]: Core physics logic (CC BY-SA).
+[*] [b]Skynet[/b]: Visualization patterns (CC BY).
+[*] [b]FivelSystems[/b]: UI & Logic.
 [/list]
 
 [size=4][b]Support[/b][/size]

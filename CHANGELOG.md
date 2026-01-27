@@ -4,9 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [2.0.0] - 2026-01-27
+### Stabilized & Simplified
+*   **Fix**: Resolved persistent crash on load by flattening architecture and removing race condition in initialization.
+*   **Fix**: "Pink Blob" gizmo fixed by implementing robust Shader finding logic (Rigify style).
+*   **Fix**: Correctly filtering out internal `PhysicsMeshJoint` objects to prevent unwanted grabs.
+*   **Fix**: "Empty Origin List" bug fixed with delayed refresh on load.
+*   **Refactor**: Reverted to Single-File Architecture for maximum stability and compatibility.
+*   **UI**: Redesigned UI with 2-Column layout, Top Origin selector, and clearer settings.
+*   **New**: Added "Grab Triggers" toggle to support grabbing trigger colliders.
+*   **New**: Added "Grab MeshJoints" toggle for power users.
+*   **New**: Visuals now changecolor (Green -> Blue) to indicate grab state.
 
-## [1] - 2026-01-25
+## [1.0.0] - 2026-01-25
 ### Added
 - Initial release of Proximity Grab.
 - Proximity detection using `Physics.OverlapSphere`.
