@@ -1,6 +1,6 @@
 # Proximity Grab for Virt-A-Mate
 ![License](https://img.shields.io/badge/License-CC_BY--SA_4.0-lightgrey.svg)
-![Version](https://img.shields.io/badge/Version-2.0-blue.svg)
+![Version](https://img.shields.io/badge/Version-v2-blue.svg)
 [![Support](https://img.shields.io/badge/Support-Buy_Me_A_Coffee-orange.svg)](https://buymeacoffee.com/fivelsystems)
 
 **Proximity Grab** allows you to grab onto other objects (Atoms) simply by being near them and activating a trigger. It uses physics joints to create stable, customizable attachments, perfect for "gluing" hands to hips, holding props, or creating dynamic interactions without complex parenting.

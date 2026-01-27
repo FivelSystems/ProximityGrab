@@ -44,6 +44,7 @@ namespace FivelSystems
             try
             {
                 // ================= LEFT COLUMN (Actions & Origin) =================
+                pluginLabelJSON.val = "ProximityGrab v2";
 
                 // 1. Origin Chooser (Top Priority)
                 originChooser = new JSONStorableStringChooser("Grab Origin", new List<string>(), "", "Grab Origin");

@@ -4,27 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [2.1.0] - 2026-01-27
-### Physics Overhaul
+## [v2] - 2026-01-27
+### Physics Overhaul & Stabilization
 *   **Feature**: Real-Time Physics. Stiffness, Mode, and Blend Speed now update instantly for active grabs.
 *   **Feature**: Proper Spring Mechanics. "Soft" and "Firm" presets now use `ConfigurableJoint` Drives instead of hard locks.
-*   **Feature**: Blending. Smooth interpolation for attachment strength and position when grabbing/releasing.
-*   **Fix**: Restored missing helper methods (`UpdateOrigin`, `RefreshOriginList`) that caused compilation errors.
+*   **Feature**: "Grab Triggers" and "Grab MeshJoints" toggles for advanced control.
+*   **Fix**: Resolved persistent crash on load by flattening architecture.
+*   **Fix**: "Pink Blob" gizmo fixed by implementing robust Shader finding logic.
+*   **Fix**: Correctly filtering out internal `PhysicsMeshJoint` objects.
+*   **Fix**: Hardened `OnDestroy` to prevent memory leaks.
+*   **UI**: Redesigned UI with 2-Column layout.
 
-## [2.0.0] - 2026-01-27
-### Stabilized & Simplified
-*   **Fix**: Resolved persistent crash on load by flattening architecture and removing race condition in initialization.
-*   **Fix**: "Pink Blob" gizmo fixed by implementing robust Shader finding logic (Rigify style).
-*   **Fix**: Correctly filtering out internal `PhysicsMeshJoint` objects to prevent unwanted grabs.
-*   **Fix**: Hardened `OnDestroy` to prevent memory leaks and "ghost objects" upon plugin removal.
-*   **Fix**: "Empty Origin List" bug fixed with delayed refresh on load.
-*   **Refactor**: Reverted to Single-File Architecture for maximum stability and compatibility.
-*   **UI**: Redesigned UI with 2-Column layout, Top Origin selector, and clearer settings.
-*   **UI**: Added new "Grabbables" section to filter targets (Standard Rigidbodies, Triggers, MeshJoints).
-*   **New**: Added "Grab Triggers" and "Grab MeshJoints" toggles for advanced control.
-*   **New**: Visuals now change color (Green -> Blue) to indicate grab state.
-
-## [1.0.0] - 2026-01-25
+## [v1] - 2026-01-25
 ### Added
 - Initial release of Proximity Grab.
 - Proximity detection using `Physics.OverlapSphere`.
