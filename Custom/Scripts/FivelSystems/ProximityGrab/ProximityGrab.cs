@@ -54,10 +54,8 @@ namespace FivelSystems
 
         // Runtime Logic
         private Rigidbody cachedOriginRB;
-        private GameObject debugVisualsParent;
-        private LineRenderer circleX;
-        private LineRenderer circleY;
-        private LineRenderer circleZ;
+        // Visualization
+        private ProximityVisualizer visualizer;
 
         // UI for active attachments
         private List<UIDynamic> attachmentUIElements = new List<UIDynamic>();
@@ -144,7 +142,9 @@ namespace FivelSystems
                 CreateToggle(attachInCurrentPose).label = "Attach in Current Pose (Keep Offset)";
 
                 // Initialize Visualization
-                InitializeDebugVisuals();
+                // Initialize Visualization
+                visualizer = new ProximityVisualizer(this);
+                visualizer.SetVisibility(showDebugSphere.val);
                 
                 CreateSpacer(false).height = 15f;
 
@@ -204,62 +204,7 @@ namespace FivelSystems
             }
         }
 
-        private void InitializeDebugVisuals()
-        {
-            try 
-            {
-                debugVisualsParent = new GameObject("ProximityGrab_Visuals");
-                debugVisualsParent.transform.SetParent(transform, false);
-                debugVisualsParent.layer = LayerMask.NameToLayer("UI");
 
-                // Create 3 circles for the sphere wireframe
-                circleX = CreateCircleLiner(debugVisualsParent, "CircleX");
-                circleY = CreateCircleLiner(debugVisualsParent, "CircleY");
-                circleZ = CreateCircleLiner(debugVisualsParent, "CircleZ");
-            }
-            catch (Exception e)
-            {
-                SuperController.LogError("ProximityGrab: Visuals setup failed: " + e);
-            }
-        }
-
-        private LineRenderer CreateCircleLiner(GameObject parent, string name)
-        {
-            GameObject go = new GameObject(name);
-            go.transform.SetParent(parent.transform, false);
-            go.layer = LayerMask.NameToLayer("UI");
-            
-            LineRenderer lr = go.AddComponent<LineRenderer>();
-            lr.useWorldSpace = true;
-            
-            // Robust Shader Finding
-            Shader sh = Shader.Find("Hidden/Internal-Colored");
-            if (sh == null) sh = Shader.Find("GUI/Text Shader");
-            if (sh == null) sh = Shader.Find("Sprites/Default");
-            if (sh == null) sh = Shader.Find("Diffuse");
-
-            if (sh != null)
-            {
-                Material mat = new Material(sh);
-                mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-                mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-                mat.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
-                mat.SetInt("_ZTest", (int)UnityEngine.Rendering.CompareFunction.Always);
-                mat.SetInt("_ZWrite", 0);
-                mat.renderQueue = 4000;
-
-                lr.material = mat;
-                lr.startColor = new Color(0f, 1f, 0f, 0.5f);
-                lr.endColor = new Color(0f, 1f, 0f, 0.5f);
-                lr.startWidth = 0.005f;
-                lr.endWidth = 0.005f;
-                lr.positionCount = 33; // 32 segments + 1 to close loop
-                lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                lr.receiveShadows = false;
-                lr.loop = true;
-            }
-            return lr;
-        }
 
         private void UpdateCachedOrigin(string val)
         {
@@ -281,22 +226,18 @@ namespace FivelSystems
             try
             {
                 // Update Visualization
-                if (debugVisualsParent != null)
+                if (visualizer != null && cachedOriginRB != null)
                 {
-                    if (showDebugSphere.val && cachedOriginRB != null)
+                    visualizer.SetVisibility(showDebugSphere.val);
+                    if (showDebugSphere.val)
                     {
-                        debugVisualsParent.SetActive(true);
                         Vector3 center = GetGrabCenter();
-                        float r = grabRadius.val;
-                        
-                        UpdateCircle(circleX, center, r, Vector3.right, Vector3.up); // XY plane
-                        UpdateCircle(circleY, center, r, Vector3.up, Vector3.forward); // YZ plane
-                        UpdateCircle(circleZ, center, r, Vector3.forward, Vector3.right); // ZX plane
+                        visualizer.DrawSphere(center, grabRadius.val);
                     }
-                    else
-                    {
-                        debugVisualsParent.SetActive(false);
-                    }
+                }
+                else if (visualizer != null)
+                {
+                    visualizer.SetVisibility(false);
                 }
 
                 // Update active attachments
@@ -317,23 +258,10 @@ namespace FivelSystems
             }
             catch (Exception e)
             {
-                // Throttle log? For now just log once per frame if error
-                 // SuperController.LogError("ProximityGrab Update: " + e); 
-                 // Updating log spam prevention is tricky here, keeping simple for now
             }
         }
 
-        private void UpdateCircle(LineRenderer lr, Vector3 center, float radius, Vector3 axis1, Vector3 axis2)
-        {
-            if (lr == null) return;
-            int segments = 32;
-            for (int i = 0; i <= segments; i++)
-            {
-                float angle = (float)i / segments * Mathf.PI * 2f;
-                Vector3 pos = center + (Mathf.Cos(angle) * axis1 + Mathf.Sin(angle) * axis2) * radius;
-                lr.SetPosition(i, pos);
-            }
-        }
+
 
         private void ToggleGrab()
         {
@@ -488,7 +416,7 @@ namespace FivelSystems
         
         public void OnDestroy()
         {
-            if (debugVisualsParent != null) Destroy(debugVisualsParent);
+            if (visualizer != null) visualizer.Destroy();
             
             foreach (var attachment in attachments)
             {
@@ -806,6 +734,106 @@ namespace FivelSystems
             public Vector3 position;
             public Quaternion rotation;
             public OffsetMemory(Vector3 p, Quaternion r) { position = p; rotation = r; }
+        }
+    }
+    /// <summary>
+    /// Handles all visual debug elements (LineRenderers, etc)
+    /// </summary>
+    public class ProximityVisualizer
+    {
+        private GameObject visualsRoot;
+        private LineRenderer circleX;
+        private LineRenderer circleY;
+        private LineRenderer circleZ;
+
+        public ProximityVisualizer(MonoBehaviour parent)
+        {
+            try 
+            {
+                visualsRoot = new GameObject("ProximityGrab_Visuals");
+                visualsRoot.transform.SetParent(parent.transform, false);
+                // Important: UI layer ensures it renders on top of stuff usually, or at least consistently
+                visualsRoot.layer = LayerMask.NameToLayer("UI"); 
+
+                // Create 3 circles for the sphere wireframe
+                circleX = CreateCircleLiner(visualsRoot, "CircleX");
+                circleY = CreateCircleLiner(visualsRoot, "CircleY");
+                circleZ = CreateCircleLiner(visualsRoot, "CircleZ");
+            }
+            catch (Exception e)
+            {
+                SuperController.LogError("ProximityVisualizer setup failed: " + e);
+            }
+        }
+
+        public void SetVisibility(bool visible)
+        {
+            if (visualsRoot != null && visualsRoot.activeSelf != visible)
+                visualsRoot.SetActive(visible);
+        }
+
+        public void DrawSphere(Vector3 center, float radius)
+        {
+            if (visualsRoot == null || !visualsRoot.activeSelf) return;
+
+            UpdateCircle(circleX, center, radius, Vector3.right, Vector3.up); // XY plane
+            UpdateCircle(circleY, center, radius, Vector3.up, Vector3.forward); // YZ plane
+            UpdateCircle(circleZ, center, radius, Vector3.forward, Vector3.right); // ZX plane
+        }
+
+        public void Destroy()
+        {
+            if (visualsRoot != null) UnityEngine.Object.Destroy(visualsRoot);
+        }
+
+        private void UpdateCircle(LineRenderer lr, Vector3 center, float radius, Vector3 axis1, Vector3 axis2)
+        {
+            if (lr == null) return;
+            int segments = 32;
+            for (int i = 0; i <= segments; i++)
+            {
+                float angle = (float)i / segments * Mathf.PI * 2f;
+                Vector3 pos = center + (Mathf.Cos(angle) * axis1 + Mathf.Sin(angle) * axis2) * radius;
+                lr.SetPosition(i, pos);
+            }
+        }
+
+        private LineRenderer CreateCircleLiner(GameObject parent, string name)
+        {
+            GameObject go = new GameObject(name);
+            go.transform.SetParent(parent.transform, false);
+            go.layer = LayerMask.NameToLayer("UI");
+            
+            LineRenderer lr = go.AddComponent<LineRenderer>();
+            lr.useWorldSpace = true;
+            
+            // Robust Shader Finding
+            Shader sh = Shader.Find("Hidden/Internal-Colored");
+            if (sh == null) sh = Shader.Find("GUI/Text Shader");
+            if (sh == null) sh = Shader.Find("Sprites/Default");
+            if (sh == null) sh = Shader.Find("Diffuse");
+
+            if (sh != null)
+            {
+                Material mat = new Material(sh);
+                mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                mat.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
+                mat.SetInt("_ZTest", (int)UnityEngine.Rendering.CompareFunction.Always);
+                mat.SetInt("_ZWrite", 0);
+                mat.renderQueue = 4000;
+
+                lr.material = mat;
+                lr.startColor = new Color(0f, 1f, 0f, 0.5f);
+                lr.endColor = new Color(0f, 1f, 0f, 0.5f);
+                lr.startWidth = 0.005f;
+                lr.endWidth = 0.005f;
+                lr.positionCount = 33; // 32 segments + 1 to close loop
+                lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                lr.receiveShadows = false;
+                lr.loop = true;
+            }
+            return lr;
         }
     }
 }

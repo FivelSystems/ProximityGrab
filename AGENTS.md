@@ -10,6 +10,15 @@ This file contains rules and context for AI Agents working on this repository.
 *   **Repo Structure**: `Custom/Scripts/FivelSystems/ProximityGrab/ProximityGrab.cs` is the main file.
 *   **License**: CC BY-SA 4.0 (Due to derivation from Kimowal's work).
 
+## Coding Standards
+1.  **Architecture**:
+    *   **Single-File**: VaM plugins must compile from a single `.cs` file. Use **Nested Classes** (or multiple classes in the same file) to separate logic.
+    *   **SOLID**: Separate Visuals, Logic, and UI into distinct classes.
+    *   **DRY**: Extract repeated logic (especially UI creation and math) into helper methods or classes.
+2.  **Unity/Physics**:
+    *   **Update Loop**: `Update()` is generally safe for `ConfigurableJoint` parameter blending (as seen in references). Use `FixedUpdate()` only if strictly manipulating RB physics steps.
+    *   **Safety**: Always null-check `Atom`, `FreeControllerV3`, and `Rigidbody` before access.
+
 ## Documentation Rules
 1.  **README.md**:
     *   Must be in standard Markdown.
