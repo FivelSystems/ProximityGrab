@@ -289,70 +289,86 @@ namespace FivelSystems
                     return;
                 }
 
-                Vector3 center = GetGrabCenter();
-                float radius = grabRadius.val;
-
-                // Use Scanner to find target
-                Rigidbody targetRB = _scanner.ScanForTarget(center, radius, containingAtom, cachedOriginRB, showDebugSphere.val);
-
+                var targetRB = _scanner.ScanForTarget(GetGrabCenter(), grabRadius.val, containingAtom, cachedOriginRB, showDebugSphere.val);
                 if (targetRB == null)
                 {
                     statusText.val = "Nothing in range.";
                     return;
                 }
 
-                // Create Attachment
-                int preset = PRESET_LOCK;
-                if (stiffnessPresetChooser.val == "Soft") preset = PRESET_SOFT;
-                else if (stiffnessPresetChooser.val == "Firm") preset = PRESET_FIRM;
-
-                int mode = MODE_GRAB;
-                if (attachmentModeChooser.val == "Glue") mode = MODE_GLUE;
-                else if (attachmentModeChooser.val == "Loose Follow") mode = MODE_LOOSE;
-                else if (attachmentModeChooser.val == "Perfect Follow") mode = MODE_PERFECT;
-
-                string sourceName = sourceControllerChooser.val;
-                string targetName = targetRB.name;
-                string targetAtomName = "Unknown";
-                
-                Atom targetAtom = _scanner.GetAtomForRigidbody(targetRB);
-                if (targetAtom != null) targetAtomName = targetAtom.uid;
-
-                string offsetKey = string.Format("{0}:{1}→{2}:{3}", containingAtom.uid, sourceName, targetAtomName, targetName);
-
-                Vector3? savedOffsetPos = null;
-                Quaternion? savedOffsetRot = null;
-                if (attachInCurrentPose.val && savedOffsets.ContainsKey(offsetKey))
-                {
-                    savedOffsetPos = savedOffsets[offsetKey].position;
-                    savedOffsetRot = savedOffsets[offsetKey].rotation;
-                }
-
-                var attachment = new PhysicsAttachment(cachedOriginRB, targetRB, preset, blendSpeed.val,
-                    containingAtom.uid, sourceName, targetAtomName, targetName, positionOnly.val,
-                    mode, attachInCurrentPose.val, "", savedOffsetPos, savedOffsetRot);
-
-                if (attachInCurrentPose.val && !savedOffsets.ContainsKey(offsetKey))
-                {
-                    savedOffsets[offsetKey] = new OffsetMemory(attachment.GetOffsetPosition(), attachment.GetOffsetRotation());
-                }
-
-                if (attachment.IsValid())
-                {
-                    attachments.Add(attachment);
-                    statusText.val = $"Attached to {targetAtomName}:{targetName}";
-                    BuildAttachmentUI();
-                }
-                else
-                {
-                    statusText.val = "Error creating attachment joint.";
-                }
-
+                CreateAttachment(targetRB);
             }
             catch (Exception e)
             {
                 SuperController.LogError("ProximityGrab Grab Error: " + e);
                 statusText.val = "Error in Grab: " + e.Message;
+            }
+        }
+
+        private void CreateAttachment(Rigidbody targetRB)
+        {
+            // Parse Settings
+            int preset = GetStiffnessPreset();
+            int mode = GetAttachmentMode();
+            
+            // Resolve Names
+            string sourceName = sourceControllerChooser.val;
+            string targetName = targetRB.name;
+            string targetAtomName = "Unknown";
+            var targetAtom = _scanner.GetAtomForRigidbody(targetRB);
+            if (targetAtom != null) targetAtomName = targetAtom.uid;
+
+            // Handle Offsets
+            string offsetKey = $"{containingAtom.uid}:{sourceName}→{targetAtomName}:{targetName}";
+            Vector3? savedPos = null;
+            Quaternion? savedRot = null;
+
+            if (attachInCurrentPose.val && savedOffsets.ContainsKey(offsetKey))
+            {
+                savedPos = savedOffsets[offsetKey].position;
+                savedRot = savedOffsets[offsetKey].rotation;
+            }
+
+            // Factory Code
+            var attachment = new PhysicsAttachment(cachedOriginRB, targetRB, preset, blendSpeed.val,
+                containingAtom.uid, sourceName, targetAtomName, targetName, positionOnly.val,
+                mode, attachInCurrentPose.val, "", savedPos, savedRot);
+
+            if (!attachment.IsValid())
+            {
+                statusText.val = "Error creating attachment joint.";
+                return;
+            }
+
+            // Valid Attachment
+            if (attachInCurrentPose.val && !savedOffsets.ContainsKey(offsetKey))
+            {
+                savedOffsets[offsetKey] = new OffsetMemory(attachment.GetOffsetPosition(), attachment.GetOffsetRotation());
+            }
+
+            attachments.Add(attachment);
+            statusText.val = $"Attached to {targetAtomName}:{targetName}";
+            BuildAttachmentUI();
+        }
+
+        private int GetStiffnessPreset()
+        {
+            switch (stiffnessPresetChooser.val)
+            {
+                case "Soft": return PRESET_SOFT;
+                case "Firm": return PRESET_FIRM;
+                default: return PRESET_LOCK;
+            }
+        }
+
+        private int GetAttachmentMode()
+        {
+            switch (attachmentModeChooser.val)
+            {
+                case "Glue": return MODE_GLUE;
+                case "Loose Follow": return MODE_LOOSE;
+                case "Perfect Follow": return MODE_PERFECT;
+                default: return MODE_GRAB;
             }
         }
         
@@ -783,11 +799,11 @@ namespace FivelSystems
 
         public Rigidbody ScanForTarget(Vector3 center, float radius, Atom sourceAtom, Rigidbody sourceRB, bool debug)
         {
-            // OverlapSphere
-            Collider[] hits = Physics.OverlapSphere(center, radius);
+            var hits = Physics.OverlapSphere(center, radius);
+            if (hits.Length == 0) return null;
             
             // Sort by distance to center
-            System.Array.Sort(hits, (x, y) => {
+            Array.Sort(hits, (x, y) => {
                 float dX = Vector3.SqrMagnitude(x.transform.position - center);
                 float dY = Vector3.SqrMagnitude(y.transform.position - center);
                 return dX.CompareTo(dY);
@@ -799,60 +815,52 @@ namespace FivelSystems
                 if (rb == null) continue;
 
                 if (IsValidTarget(rb, sourceAtom, sourceRB, debug))
-                {
                     return rb;
-                }
             }
             return null;
         }
 
         private bool IsValidTarget(Rigidbody rb, Atom sourceAtom, Rigidbody sourceRB, bool debug)
         {
-            // Logic:
-            // 1. If this plugin atom is "linked" to another object (Parented in VaM UI), exclude that parent.
-            Atom parentAtom = null;
-
-            // Method A: Check Physics Link (The "VaM Way" for parenting Atoms)
-            if (sourceAtom.mainController != null)
-            {
-                FreeControllerV3 mainCtrl = sourceAtom.mainController;
-                if (mainCtrl != null && mainCtrl.linkToRB != null)
-                {
-                    parentAtom = GetAtomForRigidbody(mainCtrl.linkToRB);
-                    if (debug && parentAtom != null)
-                        _logger?.Invoke($"ProximityGrab: Linked to Parent Atom: {parentAtom.uid}");
-                }
-            }
-
-            if (parentAtom != null)
-            {
-                // We found the Parent Atom.
-                Atom hitAtom = GetAtomForRigidbody(rb);
-                // If the hit object belongs to the Parent Atom, ignore it.
-                if (hitAtom == parentAtom)
-                {
-                    if (debug) _logger?.Invoke($"ProximityGrab: Ignored {rb.name} (Linked Parent: {parentAtom.uid})");
-                    return false;
-                }
-            }
-
-            // Also exclude the specific RB we are using as the Origin (the hand itself)
-            if (rb == sourceRB) 
+            // 1. Self-Grab check
+            if (rb == sourceRB)
             {
                 if (debug) _logger?.Invoke($"ProximityGrab: Ignored {rb.name} (Origin RB)");
+                return false;
+            }
+
+            // 2. Parent-Grab check (Prevent grabbing the object we are attached/linked to)
+            Atom parentAtom = GetLinkedParentAtom(sourceAtom);
+            if (parentAtom == null) return true;
+
+            Atom hitAtom = GetAtomForRigidbody(rb);
+            if (hitAtom == parentAtom)
+            {
+                if (debug) _logger?.Invoke($"ProximityGrab: Ignored {rb.name} (Linked Parent: {parentAtom.uid})");
                 return false;
             }
 
             return true;
         }
 
+        private Atom GetLinkedParentAtom(Atom sourceAtom)
+        {
+            if (sourceAtom == null || sourceAtom.mainController == null) return null;
+            
+            var linkTo = sourceAtom.mainController.linkToRB;
+            if (linkTo == null) return null;
+
+            return GetAtomForRigidbody(linkTo);
+        }
+
         public Atom GetAtomForRigidbody(Rigidbody rb)
         {
+            // Optimized traversal
             Transform t = rb.transform;
             while (t != null)
             {
-                Atom a = t.GetComponent<Atom>();
-                if (a != null) return a;
+                var atom = t.GetComponent<Atom>();
+                if (atom != null) return atom;
                 t = t.parent;
             }
             return null;
