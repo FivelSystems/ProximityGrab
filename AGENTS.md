@@ -19,6 +19,7 @@ This file contains rules and context for AI Agents working on this repository.
     *   **Update Loop**: `Update()` is generally safe for `ConfigurableJoint` parameter blending (as seen in references). Use `FixedUpdate()` only if strictly manipulating RB physics steps.
     *   **Safety**: Always null-check `Atom`, `FreeControllerV3`, and `Rigidbody` before access.
     *   **Naming**: Follow **JetBrains Rider C#** conventions. Variable names must be clean, self-explanatory, and human-readable (e.g., `isBlending` instead of `bBl`).
+    *   **Encapsulation**: Ensure proper hiding of internal state. Expose only necessary behavior via public methods. Fields should be private.
 
 ## Documentation Rules
 1.  **README.md**:

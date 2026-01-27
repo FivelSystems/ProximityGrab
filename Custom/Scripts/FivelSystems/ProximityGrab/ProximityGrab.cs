@@ -55,9 +55,9 @@ namespace FivelSystems
         // Runtime Logic
         private Rigidbody cachedOriginRB;
         // Visualization
-        private ProximityVisualizer visualizer;
+        private ProximityVisualizer _visualizer;
         // Logic
-        private ProximityScanner scanner;
+        private ProximityScanner _scanner;
 
         // UI for active attachments
         private List<UIDynamic> attachmentUIElements = new List<UIDynamic>();
@@ -145,16 +145,16 @@ namespace FivelSystems
 
                 // Initialize Visualization
                 // Initialize Visualization
-                visualizer = new ProximityVisualizer(this);
-                visualizer.SetVisibility(showDebugSphere.val);
+                _visualizer = new ProximityVisualizer(this);
+                _visualizer.SetVisibility(showDebugSphere.val);
 
                 // Initialize Scanner
-                scanner = new ProximityScanner((msg) => SuperController.LogMessage(msg));
+                _scanner = new ProximityScanner((msg) => SuperController.LogMessage(msg));
                 
                 CreateSpacer(false).height = 15f;
 
                 // Version label
-                pluginLabelJSON.val = "Proximity Grab v1.2";
+                pluginLabelJSON.val = "Proximity Grab v1";
 
                 BuildAttachmentUI();
                 
@@ -231,18 +231,18 @@ namespace FivelSystems
             try
             {
                 // Update Visualization
-                if (visualizer != null && cachedOriginRB != null)
+                if (_visualizer != null && cachedOriginRB != null)
                 {
-                    visualizer.SetVisibility(showDebugSphere.val);
+                    _visualizer.SetVisibility(showDebugSphere.val);
                     if (showDebugSphere.val)
                     {
                         Vector3 center = GetGrabCenter();
-                        visualizer.DrawSphere(center, grabRadius.val);
+                        _visualizer.DrawSphere(center, grabRadius.val);
                     }
                 }
-                else if (visualizer != null)
+                else if (_visualizer != null)
                 {
-                    visualizer.SetVisibility(false);
+                    _visualizer.SetVisibility(false);
                 }
 
                 // Update active attachments
@@ -293,7 +293,7 @@ namespace FivelSystems
                 float radius = grabRadius.val;
 
                 // Use Scanner to find target
-                Rigidbody targetRB = scanner.ScanForTarget(center, radius, containingAtom, cachedOriginRB, showDebugSphere.val);
+                Rigidbody targetRB = _scanner.ScanForTarget(center, radius, containingAtom, cachedOriginRB, showDebugSphere.val);
 
                 if (targetRB == null)
                 {
@@ -315,7 +315,7 @@ namespace FivelSystems
                 string targetName = targetRB.name;
                 string targetAtomName = "Unknown";
                 
-                Atom targetAtom = scanner.GetAtomForRigidbody(targetRB);
+                Atom targetAtom = _scanner.GetAtomForRigidbody(targetRB);
                 if (targetAtom != null) targetAtomName = targetAtom.uid;
 
                 string offsetKey = string.Format("{0}:{1}→{2}:{3}", containingAtom.uid, sourceName, targetAtomName, targetName);
@@ -358,7 +358,7 @@ namespace FivelSystems
         
         public void OnDestroy()
         {
-            if (visualizer != null) visualizer.Destroy();
+            if (_visualizer != null) _visualizer.Destroy();
             
             foreach (var attachment in attachments)
             {
@@ -673,24 +673,24 @@ namespace FivelSystems
     /// </summary>
     public class ProximityVisualizer
     {
-        private GameObject visualsRoot;
-        private LineRenderer circleX;
-        private LineRenderer circleY;
-        private LineRenderer circleZ;
+        private GameObject _visualsRoot;
+        private LineRenderer _circleX;
+        private LineRenderer _circleY;
+        private LineRenderer _circleZ;
 
         public ProximityVisualizer(MonoBehaviour parent)
         {
             try 
             {
-                visualsRoot = new GameObject("ProximityGrab_Visuals");
-                visualsRoot.transform.SetParent(parent.transform, false);
+                _visualsRoot = new GameObject("ProximityGrab_Visuals");
+                _visualsRoot.transform.SetParent(parent.transform, false);
                 // Important: UI layer ensures it renders on top of stuff usually, or at least consistently
-                visualsRoot.layer = LayerMask.NameToLayer("UI"); 
+                _visualsRoot.layer = LayerMask.NameToLayer("UI"); 
 
                 // Create 3 circles for the sphere wireframe
-                circleX = CreateCircleLiner(visualsRoot, "CircleX");
-                circleY = CreateCircleLiner(visualsRoot, "CircleY");
-                circleZ = CreateCircleLiner(visualsRoot, "CircleZ");
+                _circleX = CreateCircleLiner(_visualsRoot, "CircleX");
+                _circleY = CreateCircleLiner(_visualsRoot, "CircleY");
+                _circleZ = CreateCircleLiner(_visualsRoot, "CircleZ");
             }
             catch (Exception e)
             {
@@ -700,22 +700,22 @@ namespace FivelSystems
 
         public void SetVisibility(bool visible)
         {
-            if (visualsRoot != null && visualsRoot.activeSelf != visible)
-                visualsRoot.SetActive(visible);
+            if (_visualsRoot != null && _visualsRoot.activeSelf != visible)
+                _visualsRoot.SetActive(visible);
         }
 
         public void DrawSphere(Vector3 center, float radius)
         {
-            if (visualsRoot == null || !visualsRoot.activeSelf) return;
+            if (_visualsRoot == null || !_visualsRoot.activeSelf) return;
 
-            UpdateCircle(circleX, center, radius, Vector3.right, Vector3.up); // XY plane
-            UpdateCircle(circleY, center, radius, Vector3.up, Vector3.forward); // YZ plane
-            UpdateCircle(circleZ, center, radius, Vector3.forward, Vector3.right); // ZX plane
+            UpdateCircle(_circleX, center, radius, Vector3.right, Vector3.up); // XY plane
+            UpdateCircle(_circleY, center, radius, Vector3.up, Vector3.forward); // YZ plane
+            UpdateCircle(_circleZ, center, radius, Vector3.forward, Vector3.right); // ZX plane
         }
 
         public void Destroy()
         {
-            if (visualsRoot != null) UnityEngine.Object.Destroy(visualsRoot);
+            if (_visualsRoot != null) UnityEngine.Object.Destroy(_visualsRoot);
         }
 
         private void UpdateCircle(LineRenderer lr, Vector3 center, float radius, Vector3 axis1, Vector3 axis2)
@@ -766,18 +766,19 @@ namespace FivelSystems
                 lr.loop = true;
             }
             return lr;
-            }
+        }
+    }
 
     /// <summary>
     /// Handles finding valid targets in range (Scanning logic)
     /// </summary>
     public class ProximityScanner
     {
-        private Action<string> logger;
+        private Action<string> _logger;
 
         public ProximityScanner(Action<string> logMethod)
         {
-            logger = logMethod;
+            _logger = logMethod;
         }
 
         public Rigidbody ScanForTarget(Vector3 center, float radius, Atom sourceAtom, Rigidbody sourceRB, bool debug)
@@ -819,7 +820,7 @@ namespace FivelSystems
                 {
                     parentAtom = GetAtomForRigidbody(mainCtrl.linkToRB);
                     if (debug && parentAtom != null)
-                        logger?.Invoke($"ProximityGrab: Linked to Parent Atom: {parentAtom.uid}");
+                        _logger?.Invoke($"ProximityGrab: Linked to Parent Atom: {parentAtom.uid}");
                 }
             }
 
@@ -830,7 +831,7 @@ namespace FivelSystems
                 // If the hit object belongs to the Parent Atom, ignore it.
                 if (hitAtom == parentAtom)
                 {
-                    if (debug) logger?.Invoke($"ProximityGrab: Ignored {rb.name} (Linked Parent: {parentAtom.uid})");
+                    if (debug) _logger?.Invoke($"ProximityGrab: Ignored {rb.name} (Linked Parent: {parentAtom.uid})");
                     return false;
                 }
             }
@@ -838,7 +839,7 @@ namespace FivelSystems
             // Also exclude the specific RB we are using as the Origin (the hand itself)
             if (rb == sourceRB) 
             {
-                if (debug) logger?.Invoke($"ProximityGrab: Ignored {rb.name} (Origin RB)");
+                if (debug) _logger?.Invoke($"ProximityGrab: Ignored {rb.name} (Origin RB)");
                 return false;
             }
 
@@ -857,6 +858,5 @@ namespace FivelSystems
             return null;
         }
     }
-}
     }
 }
