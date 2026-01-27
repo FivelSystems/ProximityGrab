@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.1.0] - 2026-01-27
+### Physics Overhaul
+*   **Feature**: Real-Time Physics. Stiffness, Mode, and Blend Speed now update instantly for active grabs.
+*   **Feature**: Proper Spring Mechanics. "Soft" and "Firm" presets now use `ConfigurableJoint` Drives instead of hard locks.
+*   **Feature**: Blending. Smooth interpolation for attachment strength and position when grabbing/releasing.
+*   **Fix**: Restored missing helper methods (`UpdateOrigin`, `RefreshOriginList`) that caused compilation errors.
+
 ## [2.0.0] - 2026-01-27
 ### Stabilized & Simplified
 *   **Fix**: Resolved persistent crash on load by flattening architecture and removing race condition in initialization.

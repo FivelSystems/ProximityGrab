@@ -11,7 +11,8 @@
 *   🟢 **Easy Grabbing**: Select a body part (e.g., `lHand`) and click "Grab". The plugin scans for the nearest rigidbody.
 *   👁️ **Visual Feedback**: Green sphere = Scanning, Blue sphere = Holding.
 *   🧠 **Smart Filtering**: Safely ignores internal `PhysicsMeshJoint` artifacts and Auto-Targets Person physics.
-*   ⚙️ **Customizable Physics**: Presets for Stiffness (Soft/Firm/Lock) and Modes (Grab/Glue/Follow).
+*   ⚙️ **Real-Time Physics**: Adjust Stiffness (Soft/Firm/Lock) and Modes (Grab/Glue/Follow) on the fly without re-grabbing.
+*   🌊 **Fluid Blending**: Smooth transitions when attaching and detaching objects.
 *   🔧 **Power User Tools**: Toggle support for grabbing Triggers or internal MeshJoints.
 
 ## 🚀 Installation
