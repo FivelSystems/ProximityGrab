@@ -22,6 +22,7 @@ namespace FivelSystems
         private JSONStorableStringChooser originChooser;
         private JSONStorableBool grabMeshJoints;
         private JSONStorableBool grabTriggers;
+        private JSONStorableBool grabRigidbodies;
         private UIDynamicTextField statusUI;
 
         // --- State ---
@@ -81,9 +82,21 @@ namespace FivelSystems
                 statusUI.height = 80f;
 
                 // Move Grab Triggers here (Left Side)
+                // --- Grabbables Section ---
+                CreateSpacer(false).height = 10f;
+                // CreateLabel("Grabbables", false); // Optional: if you had a label helper, but spacer is fine or just implicit
+
+                grabRigidbodies = new JSONStorableBool("Grab Rigidbodies", true);
+                RegisterBool(grabRigidbodies);
+                CreateToggle(grabRigidbodies);
+
                 grabTriggers = new JSONStorableBool("Grab Triggers", false);
                 RegisterBool(grabTriggers);
-                CreateToggle(grabTriggers); // Not rightSide
+                CreateToggle(grabTriggers);
+
+                grabMeshJoints = new JSONStorableBool("Grab MeshJoints", false);
+                RegisterBool(grabMeshJoints);
+                CreateToggle(grabMeshJoints);
 
                 // ================= RIGHT COLUMN (Settings) =================
 
@@ -127,10 +140,6 @@ namespace FivelSystems
                 RegisterBool(showDebugSphere);
                 CreateToggle(showDebugSphere, true);
 
-                grabMeshJoints = new JSONStorableBool("Grab MeshJoints", false);
-                RegisterBool(grabMeshJoints);
-                CreateToggle(grabMeshJoints, true);
-
                 // Init Visuals
                 InitVisuals();
                 RefreshOriginList();
@@ -158,9 +167,32 @@ namespace FivelSystems
 
         public void OnDestroy()
         {
-            if (debugVisualsParent != null) Destroy(debugVisualsParent);
-            if (gizmoMaterial != null) Destroy(gizmoMaterial);
-            foreach (var att in activeAttachments) att.Destroy();
+            try
+            {
+                // 1. Stop Logic
+                StopAllCoroutines();
+                if (originChooser != null) originChooser.setCallbackFunction -= UpdateOrigin;
+
+                // 2. Destroy Visuals
+                if (debugVisualsParent != null) Destroy(debugVisualsParent);
+                if (gizmoMaterial != null) Destroy(gizmoMaterial);
+
+                // 3. Destroy Physics Attachments (Robust Loop)
+                if (activeAttachments != null)
+                {
+                    // Create copy to behave safely during modification
+                    var toDestroy = new List<PhysicsAttachment>(activeAttachments);
+                    foreach (var att in toDestroy)
+                    {
+                        if (att != null) att.Destroy();
+                    }
+                    activeAttachments.Clear();
+                }
+            }
+            catch (Exception e)
+            {
+                SuperController.LogError("ProximityGrab Cleanup Error: " + e);
+            }
         }
 
         public void Update()
@@ -226,8 +258,23 @@ namespace FivelSystems
                 if (rb == null || rb == currentOriginRB) continue;
                 if (IsPart(rb, containingAtom)) continue; // Self check
 
-                // Skip internal physics joints unless enabled
-                if (!grabMeshJoints.val && rb.name.Contains("PhysicsMeshJoint")) continue;
+                // 1. MeshJoint Filter
+                bool isMeshJoint = rb.name.Contains("PhysicsMeshJoint");
+                if (isMeshJoint)
+                {
+                    if (!grabMeshJoints.val) continue;
+                }
+                // 2. Trigger Filter (Explicit check purely for clarity, though Overlap handles it mostly)
+                else if (hit.isTrigger)
+                {
+                    // If we found a trigger, it means grabTriggers was likely true (via Overlap mask)
+                    // No extra check needed unless we want to double down.
+                }
+                // 3. Standard Rigidbody Filter
+                else
+                {
+                    if (!grabRigidbodies.val) continue;
+                }
 
                 target = rb;
                 break;
