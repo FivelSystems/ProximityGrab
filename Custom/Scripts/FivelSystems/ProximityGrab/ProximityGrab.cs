@@ -8,863 +8,713 @@ using SimpleJSON;
 namespace FivelSystems
 {
     /// <summary>
-    /// Proximity Grab (Physics Attachment Engine Edition)
-    /// Merges the robustness of Kimowal's PhysicsAttachmentEngine with a Proximity/Trigger workflow.
-    /// Uses Physics.OverlapSphere to find grab targets.
-    /// 
-    /// CREDITS:
-    /// Core physics logic and attachment engine based on 'PhysicsAttachmentEngine' by Kimowal.
-    /// Adapted for Proximity usage by FivelSystems.
+    /// Proximity Grab (Refactored)
+    /// Architecture: Facade Pattern.
+    /// ProximityGrab coordinates specialized modules (UI, Scanner, Visualizer, AttachmentManager).
     /// </summary>
     public class ProximityGrab : MVRScript
     {
-        // Stiffness presets (Kimowal's values)
-        private const int PRESET_SOFT = 0;
-        private const int PRESET_FIRM = 1;
-        private const int PRESET_LOCK = 2;
+        // --- Enums (Type Safety) ---
+        public enum Stiffness { Soft = 0, Firm = 1, Lock = 2 }
+        public enum GrabMode { Hold = 0, Glue = 1, Loose = 2, Perfect = 3 }
 
-        // Attachment modes
-        private const int MODE_GRAB = 0;
-        private const int MODE_GLUE = 1;
-        private const int MODE_LOOSE = 2;
-        private const int MODE_PERFECT = 3;
+        // --- Configuration Struct ---
+        public struct GrabbingConfig
+        {
+            public Stiffness Stiffness;
+            public GrabMode Mode;
+            public float BlendSpeed;
+            public bool PositionOnly;
+            public bool KeepOffset;
+        }
 
-        // Active attachments
-        private List<PhysicsAttachment> attachments = new List<PhysicsAttachment>();
-
-        // Offset memory
-        private Dictionary<string, OffsetMemory> savedOffsets = new Dictionary<string, OffsetMemory>();
-
-        // UI
-        private JSONStorableStringChooser sourceControllerChooser; // "Grab Origin"
-        private JSONStorableStringChooser stiffnessPresetChooser;
-        private JSONStorableStringChooser attachmentModeChooser;     
-        private JSONStorableFloat blendSpeed;
-        private JSONStorableBool positionOnly;
-        private JSONStorableBool attachInCurrentPose;                
-        private JSONStorableString statusText;
-        private UIDynamicTextField statusUI;
-
-        // Proximity Settings
-        private JSONStorableFloat grabRadius;
-        private JSONStorableFloat offsetX;
-        private JSONStorableFloat offsetY;
-        private JSONStorableFloat offsetZ;
-        private JSONStorableBool showDebugSphere;
-
-        // Runtime Logic
-        private Rigidbody cachedOriginRB;
-        // Visualization
-        private ProximityVisualizer _visualizer;
-        // Logic
+        // --- Modules ---
+        private ProximityUI _ui;
         private ProximityScanner _scanner;
+        private ProximityVisualizer _visualizer;
+        private AttachmentManager _attachmentManager;
 
-        // UI for active attachments
-        private List<UIDynamic> attachmentUIElements = new List<UIDynamic>();
+        // --- State ---
+        private Rigidbody _originRB;
+        private Dictionary<string, OffsetMemory> _savedOffsets = new Dictionary<string, OffsetMemory>();
+
+        // --- Unity Lifecycle ---
 
         public override void Init()
         {
             try
             {
-                // 1. Core Actions (Always on Top for easy access)
-                // Exposed as "ToggleGrab", "Grab", "Ungrab" for other plugins/triggers
-                JSONStorableAction toggleAction = new JSONStorableAction("ToggleGrab", ToggleGrab);
-                RegisterAction(toggleAction);
-                CreateButton("Toggle Attach").button.onClick.AddListener(ToggleGrab);
-
-                JSONStorableAction attachAction = new JSONStorableAction("Grab", Grab);
-                RegisterAction(attachAction);
-                CreateButton("Attach").button.onClick.AddListener(Grab);
-
-                JSONStorableAction detachAction = new JSONStorableAction("Ungrab", Ungrab);
-                RegisterAction(detachAction);
-                CreateButton("Detach All").button.onClick.AddListener(Ungrab);
-
-                JSONStorableAction detachLastAction = new JSONStorableAction("Detach Last", OnDetachLast);
-                RegisterAction(detachLastAction);
-                CreateButton("Detach Last").button.onClick.AddListener(OnDetachLast);
-
-                CreateSpacer(false).height = 15f;
-
-                // 2. Status
-                statusText = new JSONStorableString("Status", "Select Origin, then Attach.");
-                RegisterString(statusText);
-                statusUI = CreateTextField(statusText);
-                statusUI.height = 80f;
-
-                // 3. Proximity Settings
-                grabRadius = new JSONStorableFloat("Grab Radius", 0.15f, 0.01f, 0.5f, true);
-                RegisterFloat(grabRadius);
-                CreateSlider(grabRadius);
-
-                offsetX = new JSONStorableFloat("Offset X", 0f, -0.5f, 0.5f, true);
-                RegisterFloat(offsetX);
-                CreateSlider(offsetX);
-
-                offsetY = new JSONStorableFloat("Offset Y", 0f, -0.5f, 0.5f, true);
-                RegisterFloat(offsetY);
-                CreateSlider(offsetY);
-
-                offsetZ = new JSONStorableFloat("Offset Z", 0f, -0.5f, 0.5f, true);
-                RegisterFloat(offsetZ);
-                CreateSlider(offsetZ);
-
-                showDebugSphere = new JSONStorableBool("Show Debug Sphere", true);
-                RegisterBool(showDebugSphere);
-                
-                CreateToggle(showDebugSphere);
-
-                // 4. Stiffness preset
-                stiffnessPresetChooser = new JSONStorableStringChooser("StiffnessPreset",
-                    new List<string> { "Soft", "Firm", "Lock" },
-                    "Lock", "Stiffness Preset"); 
-                RegisterStringChooser(stiffnessPresetChooser);
-                CreateScrollablePopup(stiffnessPresetChooser);
-
-                // 5. Attachment Mode
-                attachmentModeChooser = new JSONStorableStringChooser("AttachmentMode",
-                    new List<string> { "Grab/Hold", "Glue", "Loose Follow", "Perfect Follow" },
-                    "Grab/Hold", "Attachment Mode");
-                RegisterStringChooser(attachmentModeChooser);
-                CreateScrollablePopup(attachmentModeChooser);
-
-                // Blend speed
-                blendSpeed = new JSONStorableFloat("BlendSpeed", 2f, 0.1f, 10f, true);
-                RegisterFloat(blendSpeed);
-                CreateSlider(blendSpeed);
-
-                // Position only toggle
-                positionOnly = new JSONStorableBool("PositionOnly", false);
-                RegisterBool(positionOnly);
-                CreateToggle(positionOnly).label = "Position Only (No Rotation)";
-
-                // Attach in current pose
-                attachInCurrentPose = new JSONStorableBool("AttachInCurrentPose", true);
-                RegisterBool(attachInCurrentPose);
-                CreateToggle(attachInCurrentPose).label = "Attach in Current Pose (Keep Offset)";
-
-                // Initialize Visualization
-                // Initialize Visualization
-                _visualizer = new ProximityVisualizer(this);
-                _visualizer.SetVisibility(showDebugSphere.val);
-
-                // Initialize Scanner
+                // 1. Initialize Modules
                 _scanner = new ProximityScanner((msg) => SuperController.LogMessage(msg));
+                _visualizer = new ProximityVisualizer(this);
+                _attachmentManager = new AttachmentManager(this);
                 
-                CreateSpacer(false).height = 15f;
-
-                // Version label
-                pluginLabelJSON.val = "Proximity Grab v1";
-
-                BuildAttachmentUI();
+                // 2. Initialize UI (Builder Pattern)
+                _ui = new ProximityUI(this, _attachmentManager);
+                _ui.BuildCoreControls();
                 
-                // Moved Origin Setup to Start() to allow VaM to finalize Links/Physics before we cache
+                // 3. Connect Events
+                _ui.OnGrabRequest += PerformGrab;
+                _ui.OnUngrabRequest += PerformUngrab;
+                _ui.OnOriginChanged += UpdateOrigin;
+
+                // 4. Delayed Physics Setup
                 StartCoroutine(InitDelayed());
                 
-                SuperController.LogMessage("ProximityGrab: UI Initialized.");
+                SuperController.LogMessage("ProximityGrab: Initialized (Refactored).");
             }
             catch (Exception e)
             {
-                SuperController.LogError("ProximityGrab Init Error: " + e);
+                SuperController.LogError($"ProximityGrab Init Failed: {e}");
             }
         }
 
         private IEnumerator InitDelayed()
         {
-            // Wait for 2 frames to ensure VaM has fully applied 'LinkTo' constraints
+            // Wait for VaM physics/links to settle
             yield return null;
             yield return null;
-
-            try 
-            {
-                // 4. Source Controller (Grab Origin)
-                var originChoices = matchObjects(containingAtom);
-                sourceControllerChooser = new JSONStorableStringChooser("Grab Origin", originChoices, "", "Grab Origin Body");
-                RegisterStringChooser(sourceControllerChooser);
-                CreateFilterablePopup(sourceControllerChooser);
-                sourceControllerChooser.setCallbackFunction += UpdateCachedOrigin;
-                
-                // Auto-select Hand if available (smart default)
-                string defaultHand = originChoices.FirstOrDefault(c => c.ToLower().Contains("rhand") || c.ToLower().Contains("lhand"));
-                if (!string.IsNullOrEmpty(defaultHand)) 
-                    sourceControllerChooser.val = defaultHand;
-                else if (originChoices.Count > 0)
-                    sourceControllerChooser.val = originChoices[0];
-
-                CreateButton("Refresh Origin List").button.onClick.AddListener(() => {
-                    sourceControllerChooser.choices = matchObjects(containingAtom);
-                    if (!sourceControllerChooser.choices.Contains(sourceControllerChooser.val) && sourceControllerChooser.choices.Count > 0)
-                        sourceControllerChooser.val = sourceControllerChooser.choices[0];
-                    UpdateCachedOrigin(sourceControllerChooser.val);
-                });
-
-                // Update cache immediately
-                UpdateCachedOrigin(sourceControllerChooser.val);
-                
-                SuperController.LogMessage("ProximityGrab: Physics Ready. Origin set to: " + sourceControllerChooser.val);
-            }
-            catch (Exception e)
-            {
-                SuperController.LogError("ProximityGrab DelayedInit Error: " + e);
-            }
-        }
-
-
-
-        private void UpdateCachedOrigin(string val)
-        {
-            cachedOriginRB = GetRigidbodyFromSelection(containingAtom, val);
-            if (cachedOriginRB != null) statusText.val = "Ready. Origin: " + val;
-            else statusText.val = "Origin not found. Select a valid part.";
-        }
-
-        private Vector3 GetGrabCenter()
-        {
-            if (cachedOriginRB == null) return transform.position;
-            // Apply local offset relative to origin rotation
-            Vector3 localOffset = new Vector3(offsetX.val, offsetY.val, offsetZ.val);
-            return cachedOriginRB.position + cachedOriginRB.transform.rotation * localOffset;
+            _ui.RefreshOriginList();
         }
 
         public void Update()
         {
             try
             {
-                // Update Visualization
-                if (_visualizer != null && cachedOriginRB != null)
+                // Visualization
+                if (_ui.ShowDebugSphere.val && _originRB != null)
                 {
-                    _visualizer.SetVisibility(showDebugSphere.val);
-                    if (showDebugSphere.val)
-                    {
-                        Vector3 center = GetGrabCenter();
-                        _visualizer.DrawSphere(center, grabRadius.val);
-                    }
+                    _visualizer.SetVisibility(true);
+                    _visualizer.DrawSphere(GetGrabCenter(), _ui.GrabRadius.val);
                 }
-                else if (_visualizer != null)
+                else
                 {
                     _visualizer.SetVisibility(false);
                 }
 
-                // Update active attachments
-                for (int i = attachments.Count - 1; i >= 0; i--)
-                {
-                    var attachment = attachments[i];
-                    if (attachment != null)
-                    {
-                        attachment.Update(Time.deltaTime);
-                        if (attachment.ReadyToDestroy())
-                        {
-                            attachment.Destroy();
-                            attachments.RemoveAt(i);
-                            BuildAttachmentUI();
-                        }
-                    }
-                }
+                // Physics Updates
+                _attachmentManager.UpdateAttachments(Time.deltaTime);
             }
             catch (Exception e)
             {
+                // Throttle logging in production if needed
             }
         }
 
-
-
-        private void ToggleGrab()
+        public void OnDestroy()
         {
-            if (attachments.Count > 0) Ungrab();
-            else Grab();
+            _visualizer?.Destroy();
+            _attachmentManager?.DestroyAll();
         }
 
-        public void Ungrab()
+        // --- Core Logic ---
+
+        private void PerformGrab()
         {
-            OnDetachAll();
-        }
-
-        public void Grab()
-        {
-            try
+            if (_originRB == null)
             {
-                if (cachedOriginRB == null)
-                {
-                    statusText.val = "Error: Invalid Origin.";
-                    return;
-                }
-
-                var targetRB = _scanner.ScanForTarget(GetGrabCenter(), grabRadius.val, containingAtom, cachedOriginRB, showDebugSphere.val);
-                if (targetRB == null)
-                {
-                    statusText.val = "Nothing in range.";
-                    return;
-                }
-
-                CreateAttachment(targetRB);
-            }
-            catch (Exception e)
-            {
-                SuperController.LogError("ProximityGrab Grab Error: " + e);
-                statusText.val = "Error in Grab: " + e.Message;
-            }
-        }
-
-        private void CreateAttachment(Rigidbody targetRB)
-        {
-            // Parse Settings
-            int preset = GetStiffnessPreset();
-            int mode = GetAttachmentMode();
-            
-            // Resolve Names
-            string sourceName = sourceControllerChooser.val;
-            string targetName = targetRB.name;
-            string targetAtomName = "Unknown";
-            var targetAtom = _scanner.GetAtomForRigidbody(targetRB);
-            if (targetAtom != null) targetAtomName = targetAtom.uid;
-
-            // Handle Offsets
-            string offsetKey = $"{containingAtom.uid}:{sourceName}→{targetAtomName}:{targetName}";
-            Vector3? savedPos = null;
-            Quaternion? savedRot = null;
-
-            if (attachInCurrentPose.val && savedOffsets.ContainsKey(offsetKey))
-            {
-                savedPos = savedOffsets[offsetKey].position;
-                savedRot = savedOffsets[offsetKey].rotation;
-            }
-
-            // Factory Code
-            var attachment = new PhysicsAttachment(cachedOriginRB, targetRB, preset, blendSpeed.val,
-                containingAtom.uid, sourceName, targetAtomName, targetName, positionOnly.val,
-                mode, attachInCurrentPose.val, "", savedPos, savedRot);
-
-            if (!attachment.IsValid())
-            {
-                statusText.val = "Error creating attachment joint.";
+                _ui.SetStatus("Error: Invalid Origin.");
                 return;
             }
 
-            // Valid Attachment
-            if (attachInCurrentPose.val && !savedOffsets.ContainsKey(offsetKey))
-            {
-                savedOffsets[offsetKey] = new OffsetMemory(attachment.GetOffsetPosition(), attachment.GetOffsetRotation());
-            }
-
-            attachments.Add(attachment);
-            statusText.val = $"Attached to {targetAtomName}:{targetName}";
-            BuildAttachmentUI();
-        }
-
-        private int GetStiffnessPreset()
-        {
-            switch (stiffnessPresetChooser.val)
-            {
-                case "Soft": return PRESET_SOFT;
-                case "Firm": return PRESET_FIRM;
-                default: return PRESET_LOCK;
-            }
-        }
-
-        private int GetAttachmentMode()
-        {
-            switch (attachmentModeChooser.val)
-            {
-                case "Glue": return MODE_GLUE;
-                case "Loose Follow": return MODE_LOOSE;
-                case "Perfect Follow": return MODE_PERFECT;
-                default: return MODE_GRAB;
-            }
-        }
-        
-        public void OnDestroy()
-        {
-            if (_visualizer != null) _visualizer.Destroy();
+            // 1. Scan
+            Vector3 center = GetGrabCenter();
+            var targetRB = _scanner.ScanForTarget(center, _ui.GrabRadius.val, containingAtom, _originRB, _ui.ShowDebugSphere.val);
             
-            foreach (var attachment in attachments)
+            if (targetRB == null)
             {
-                if (attachment != null) attachment.Destroy();
+                _ui.SetStatus("Nothing in range.");
+                return;
             }
-            attachments.Clear();
+
+            // 2. Prepare Config
+            var config = _ui.GetConfig();
+            
+            // 3. Resolve Names & Offsets
+            string sourceName = _ui.GetSelectedOriginName();
+            string targetName = targetRB.name;
+            Atom targetAtom = _scanner.GetAtomForRigidbody(targetRB);
+            string targetAtomName = targetAtom != null ? targetAtom.uid : "Unknown";
+
+            string offsetKey = $"{containingAtom.uid}:{sourceName}→{targetAtomName}:{targetName}";
+            
+            Vector3? savedPos = null;
+            Quaternion? savedRot = null;
+
+            if (config.KeepOffset && _savedOffsets.ContainsKey(offsetKey))
+            {
+                savedPos = _savedOffsets[offsetKey].Position;
+                savedRot = _savedOffsets[offsetKey].Rotation;
+            }
+
+            // 4. Create Attachment
+            var attachment = new PhysicsAttachment(_originRB, targetRB, config, containingAtom.uid, sourceName, targetAtomName, targetName, savedPos, savedRot);
+
+            if (attachment.IsValid())
+            {
+                // Save Offset if new
+                if (config.KeepOffset && !_savedOffsets.ContainsKey(offsetKey))
+                {
+                    _savedOffsets[offsetKey] = new OffsetMemory(attachment.GetOffsetPosition(), attachment.GetOffsetRotation());
+                }
+
+                _attachmentManager.Add(attachment);
+                _ui.SetStatus($"Attached to {targetAtomName}:{targetName}");
+            }
+            else
+            {
+                _ui.SetStatus("Error creating joint.");
+            }
         }
 
-        // --- Helpers ---
-
-
-
-        private List<string> matchObjects(Atom atom)
+        private void PerformUngrab()
         {
-            var choices = new List<string>();
-            if (atom == null) return choices;
+            _attachmentManager.DestroyAll();
+            _ui.SetStatus("Detached all.");
+        }
 
-            foreach (var fc in atom.freeControllers)
+        private void UpdateOrigin(string selection)
+        {
+            _originRB = _scanner.GetRigidbodyFromSelection(containingAtom, selection);
+            _ui.SetStatus(_originRB != null ? $"Ready. Origin: {selection}" : "Origin not found.");
+        }
+
+        public Vector3 GetGrabCenter()
+        {
+            if (_originRB == null) return transform.position;
+            return _originRB.transform.TransformPoint(_ui.GetOffsetVector());
+        }
+
+        // --- Modules (Nested Classes) ---
+
+        /// <summary>
+        /// Handles all UI generation and interaction (Builder Pattern).
+        /// </summary>
+        public class ProximityUI
+        {
+            private ProximityGrab _facade;
+            private AttachmentManager _mgr;
+
+            // Inputs
+            public JSONStorableFloat GrabRadius;
+            public JSONStorableBool ShowDebugSphere;
+            public JSONStorableStringChooser StiffnessChooser;
+            public JSONStorableStringChooser ModeChooser;
+            // Configs
+            private JSONStorableFloat _offsetX, _offsetY, _offsetZ;
+            private JSONStorableFloat _blendSpeed;
+            private JSONStorableBool _positionOnly;
+            private JSONStorableBool _keepOffset;
+            private JSONStorableString _statusText;
+            private JSONStorableStringChooser _originChooser;
+            private UIDynamicTextField _statusUI;
+
+            // Events
+            public event Action OnGrabRequest;
+            public event Action OnUngrabRequest;
+            public event Action<string> OnOriginChanged;
+
+            public ProximityUI(ProximityGrab facade, AttachmentManager mgr)
             {
-                if (fc != null) choices.Add(fc.name);
+                _facade = facade;
+                _mgr = mgr;
+                _mgr.OnListChanged += RebuildAttachmentList; // Observer
             }
 
-            foreach (var rb in atom.GetComponentsInChildren<Rigidbody>())
+            public void BuildCoreControls()
             {
-                string name = rb.name;
-                if (!name.Contains("Collision") && !name.Contains("Trigger") && !choices.Contains(name))
+                // 1. Actions
+                _facade.CreateButton("Toggle Attach").button.onClick.AddListener(() => {
+                    if (_mgr.Count > 0) OnUngrabRequest?.Invoke(); else OnGrabRequest?.Invoke();
+                });
+                _facade.CreateButton("Attach").button.onClick.AddListener(()=> OnGrabRequest?.Invoke());
+                _facade.CreateButton("Detach All").button.onClick.AddListener(()=> OnUngrabRequest?.Invoke());
+                _facade.CreateButton("Detach Last").button.onClick.AddListener(() => _mgr.DestroyLast());
+
+                _facade.RegisterAction(new JSONStorableAction("Grab", () => OnGrabRequest?.Invoke()));
+                _facade.RegisterAction(new JSONStorableAction("Ungrab", () => OnUngrabRequest?.Invoke()));
+                _facade.RegisterAction(new JSONStorableAction("ToggleGrab", () => {
+                    if (_mgr.Count > 0) OnUngrabRequest?.Invoke(); else OnGrabRequest?.Invoke();
+                }));
+
+                _facade.CreateSpacer(false).height = 15f;
+
+                // 2. Status
+                _statusText = new JSONStorableString("Status", "Select Origin, then Attach.");
+                _facade.RegisterString(_statusText);
+                _statusUI = _facade.CreateTextField(_statusText);
+                _statusUI.height = 80f;
+
+                // 3. Settings
+                GrabRadius = new JSONStorableFloat("Grab Radius", 0.15f, 0.01f, 0.5f, true);
+                _facade.RegisterFloat(GrabRadius);
+                _facade.CreateSlider(GrabRadius);
+
+                _offsetX = new JSONStorableFloat("Offset X", 0f, -0.5f, 0.5f, true);
+                _offsetY = new JSONStorableFloat("Offset Y", 0f, -0.5f, 0.5f, true);
+                _offsetZ = new JSONStorableFloat("Offset Z", 0f, -0.5f, 0.5f, true);
+                _facade.RegisterFloat(_offsetX); _facade.RegisterFloat(_offsetY); _facade.RegisterFloat(_offsetZ);
+                _facade.CreateSlider(_offsetX); _facade.CreateSlider(_offsetY); _facade.CreateSlider(_offsetZ);
+
+                ShowDebugSphere = new JSONStorableBool("Show Debug Sphere", true);
+                _facade.RegisterBool(ShowDebugSphere);
+                _facade.CreateToggle(ShowDebugSphere);
+
+                // 4. Configs
+                StiffnessChooser = new JSONStorableStringChooser("Stiffness", new List<string> { "Soft", "Firm", "Lock" }, "Lock", "Stiffness");
+                _facade.RegisterStringChooser(StiffnessChooser);
+                _facade.CreateScrollablePopup(StiffnessChooser);
+
+                ModeChooser = new JSONStorableStringChooser("Mode", new List<string> { "Grab/Hold", "Glue", "Loose Follow", "Perfect Follow" }, "Grab/Hold", "Mode");
+                _facade.RegisterStringChooser(ModeChooser);
+                _facade.CreateScrollablePopup(ModeChooser);
+
+                _blendSpeed = new JSONStorableFloat("BlendSpeed", 2f, 0.1f, 10f, true);
+                _facade.RegisterFloat(_blendSpeed);
+                _facade.CreateSlider(_blendSpeed);
+
+                _positionOnly = new JSONStorableBool("PositionOnly", false);
+                _facade.RegisterBool(_positionOnly);
+                _facade.CreateToggle(_positionOnly).label = "Position Only (No Rotation)";
+
+                _keepOffset = new JSONStorableBool("KeepOffset", true);
+                _facade.RegisterBool(_keepOffset);
+                _facade.CreateToggle(_keepOffset).label = "Attach in Current Pose";
+
+                _facade.CreateSpacer(false).height = 15f;
+
+                // 5. Origin Chooser (Placeholder, populated later)
+                _originChooser = new JSONStorableStringChooser("Grab Origin", new List<string>(), "", "Grab Origin");
+                _facade.RegisterStringChooser(_originChooser);
+                _facade.CreateFilterablePopup(_originChooser);
+                _originChooser.setCallbackFunction += (val) => OnOriginChanged?.Invoke(val);
+
+                _facade.CreateButton("Refresh Origin List").button.onClick.AddListener(RefreshOriginList);
+            }
+
+            public void RefreshOriginList()
+            {
+                var choices = MatchObjects(_facade.containingAtom);
+                _originChooser.choices = choices;
+                
+                // Smart Default
+                if (string.IsNullOrEmpty(_originChooser.val) || !_originChooser.choices.Contains(_originChooser.val))
                 {
-                     if (atom.type == "Person") 
-                     {
-                         if (name.Contains("hand") || name.Contains("head") || name.Contains("chest") || 
-                             name.Contains("hip") || name.Contains("pelvis") || name.Contains("foot"))
-                         {
-                             choices.Add(name);
-                         }
-                     }
-                     else
-                     {
-                        choices.Add(name);
-                     }
+                    string smartDefault = choices.FirstOrDefault(c => c.ToLower().Contains("rhand")) 
+                                        ?? choices.FirstOrDefault(c => c.ToLower().Contains("lhand"))
+                                        ?? choices.FirstOrDefault();
+                    _originChooser.val = smartDefault;
+                }
+                
+                // Force Update
+                OnOriginChanged?.Invoke(_originChooser.val);
+            }
+
+            private List<string> MatchObjects(Atom atom)
+            {
+                var list = new List<string>();
+                if (atom == null) return list;
+
+                foreach (var fc in atom.freeControllers)
+                    if (fc != null) list.Add(fc.name);
+
+                foreach (var rb in atom.GetComponentsInChildren<Rigidbody>())
+                {
+                    string n = rb.name;
+                    if (n.Contains("Collision") || n.Contains("Trigger") || list.Contains(n)) continue;
+                    
+                    if (atom.type == "Person") {
+                        if (CanPickPersonPart(n)) list.Add(n);
+                    } else {
+                        list.Add(n);
+                    }
+                }
+                list.Sort();
+                return list;
+            }
+
+            private bool CanPickPersonPart(string name)
+            {
+                return name.Contains("hand") || name.Contains("head") || name.Contains("chest") || 
+                       name.Contains("hip") || name.Contains("pelvis") || name.Contains("foot");
+            }
+
+            // --- Accessors ---
+            public void SetStatus(string msg) => _statusText.val = msg;
+            public Vector3 GetOffsetVector() => new Vector3(_offsetX.val, _offsetY.val, _offsetZ.val);
+            public string GetSelectedOriginName() => _originChooser.val;
+
+            public GrabbingConfig GetConfig()
+            {
+                return new GrabbingConfig
+                {
+                    Stiffness = ParseStiffness(StiffnessChooser.val),
+                    Mode = ParseMode(ModeChooser.val),
+                    BlendSpeed = _blendSpeed.val,
+                    PositionOnly = _positionOnly.val,
+                    KeepOffset = _keepOffset.val
+                };
+            }
+
+            private Stiffness ParseStiffness(string val)
+            {
+                if (val == "Soft") return Stiffness.Soft;
+                if (val == "Firm") return Stiffness.Firm;
+                return Stiffness.Lock;
+            }
+
+            private GrabMode ParseMode(string val)
+            {
+                if (val == "Glue") return GrabMode.Glue;
+                if (val == "Loose Follow") return GrabMode.Loose;
+                if (val == "Perfect Follow") return GrabMode.Perfect;
+                return GrabMode.Hold;
+            }
+
+            // --- Dynamic UI for Attachments ---
+            private List<UIDynamic> _dynamicUI = new List<UIDynamic>();
+
+            private void RebuildAttachmentList()
+            {
+                // Clear old
+                foreach (var item in _dynamicUI)
+                {
+                    if (item is UIDynamicButton b) _facade.RemoveButton(b);
+                    else if (item is UIDynamicTextField t) _facade.RemoveTextField(t);
+                    else _facade.RemoveSpacer(item);
+                }
+                _dynamicUI.Clear();
+
+                // Build new
+                 var attachments = _mgr.GetAttachments();
+                 if (attachments.Count == 0) return;
+
+                 var sp = _facade.CreateSpacer(true); sp.height = 20f;
+                 _dynamicUI.Add(sp);
+
+                 var head = _facade.CreateTextField(new JSONStorableString("H", $"Active ({attachments.Count})"), true);
+                 _dynamicUI.Add(head);
+
+                 for(int i=0; i<attachments.Count; i++)
+                 {
+                     var att = attachments[i];
+                     int idx = i;
+                     string info = $"{i+1}. {att.TargetName} [{att.Config.Mode}]";
+                     _dynamicUI.Add(_facade.CreateTextField(new JSONStorableString("i"+i, info), true));
+                     
+                     var btn = _facade.CreateButton("Detach", true);
+                     btn.buttonColor = new Color(1f, 0.5f, 0.5f);
+                     btn.button.onClick.AddListener(()=> _mgr.DestroyAt(idx));
+                     _dynamicUI.Add(btn);
+                 }
+            }
+        }
+
+        /// <summary>
+        /// Manages the collection of active physics attachments.
+        /// </summary>
+        public class AttachmentManager
+        {
+            private List<PhysicsAttachment> _items = new List<PhysicsAttachment>();
+            private MonoBehaviour _host;
+            public event Action OnListChanged;
+
+            public AttachmentManager(MonoBehaviour host) { _host = host; }
+            public int Count => _items.Count;
+
+            public void Add(PhysicsAttachment att)
+            {
+                if (att == null) return;
+                _items.Add(att);
+                OnListChanged?.Invoke();
+            }
+
+            public void UpdateAttachments(float dt)
+            {
+                for (int i = _items.Count - 1; i >= 0; i--)
+                {
+                    var att = _items[i];
+                    att.Update(dt);
+                    if (att.ReadyToDestroy)
+                    {
+                        att.Destroy();
+                        _items.RemoveAt(i);
+                        OnListChanged?.Invoke();
+                    }
                 }
             }
-            choices.Sort();
-            return choices;
+
+            public void DestroyAt(int index)
+            {
+                if (index >= 0 && index < _items.Count)
+                {
+                    _items[index].BeginDetach(); // Smooth detach
+                }
+            }
+
+            public void DestroyLast() => DestroyAt(_items.Count - 1);
+
+            public void DestroyAll()
+            {
+                foreach (var att in _items) att.Destroy();
+                _items.Clear();
+                OnListChanged?.Invoke();
+            }
+
+            public List<PhysicsAttachment> GetAttachments() => _items;
         }
 
-        private Rigidbody GetRigidbodyFromSelection(Atom atom, string selection)
+        /// <summary>
+        /// Scans for rigidbodies in range (Service).
+        /// </summary>
+        public class ProximityScanner
         {
-            if (atom == null || string.IsNullOrEmpty(selection)) return null;
-            
-            var fc = atom.freeControllers.FirstOrDefault(c => c.name == selection);
-            if (fc != null)
+            private Action<string> _logger;
+            public ProximityScanner(Action<string> logger) => _logger = logger;
+
+            public Rigidbody ScanForTarget(Vector3 center, float radius, Atom sourceAtom, Rigidbody sourceRB, bool debug)
             {
-                // FIX: Do NOT return linkToRB or use missing 'currentRigidbody'
-                // Just get the standard Rigidbody component.
+                var hits = Physics.OverlapSphere(center, radius);
+                if (hits.Length == 0) return null;
+
+                // LINQ is okay here, not every frame usually (only on Grab click)
+                var sorted = hits.OrderBy(h => Vector3.SqrMagnitude(h.transform.position - center));
+
+                foreach (var hit in sorted)
+                {
+                    var rb = hit.attachedRigidbody;
+                    if (rb != null && IsValidTarget(rb, sourceAtom, sourceRB, debug))
+                        return rb;
+                }
+                return null;
+            }
+
+            private bool IsValidTarget(Rigidbody rb, Atom sourceAtom, Rigidbody sourceRB, bool debug)
+            {
+                if (rb == sourceRB) return false;
                 
-                var rb = fc.GetComponent<Rigidbody>();
-                if (rb != null) return rb;
-                return fc.GetComponentInChildren<Rigidbody>();
+                // Check Parent Link
+                Atom parent = GetLinkedParent(sourceAtom);
+                if (parent != null)
+                {
+                    if (GetAtomForRigidbody(rb) == parent)
+                    {
+                        if (debug) _logger?.Invoke($"Ignored {rb.name} (Parent: {parent.uid})");
+                        return false;
+                    }
+                }
+                return true;
             }
 
-            var allRBs = atom.GetComponentsInChildren<Rigidbody>();
-            return allRBs.FirstOrDefault(r => r.name == selection);
-        }
-
-        private void OnDetachAll()
-        {
-            foreach (var attachment in attachments)
-                if (attachment != null) attachment.Destroy();
-            attachments.Clear();
-            statusText.val = "All attachments removed";
-            BuildAttachmentUI();
-        }
-
-        private void OnDetachLast()
-        {
-            if (attachments.Count == 0) return;
-            int lastIndex = attachments.Count - 1;
-            if (attachments[lastIndex] != null) attachments[lastIndex].Destroy();
-            attachments.RemoveAt(lastIndex);
-            BuildAttachmentUI();
-        }
-
-        private void DetachSingle(int index)
-        {
-            if (index < 0 || index >= attachments.Count) return;
-            var attachment = attachments[index];
-            if (attachment != null) attachment.BeginDetach();
-        }
-
-        private void BuildAttachmentUI()
-        {
-            foreach (var elem in attachmentUIElements)
+            private Atom GetLinkedParent(Atom atom)
             {
-                if (elem is UIDynamicButton) RemoveButton((UIDynamicButton)elem);
-                else if (elem is UIDynamicTextField) RemoveTextField((UIDynamicTextField)elem);
-                else RemoveSpacer(elem);
+                if (atom?.mainController?.linkToRB != null)
+                    return GetAtomForRigidbody(atom.mainController.linkToRB);
+                return null;
             }
-            attachmentUIElements.Clear();
 
-            if (attachments.Count == 0) return;
-
-            UIDynamic spacer = CreateSpacer(true);
-            spacer.height = 20f;
-            attachmentUIElements.Add(spacer);
-
-            var header = CreateTextField(new JSONStorableString("Header", $"Active Attachments ({attachments.Count})"), true);
-            attachmentUIElements.Add(header);
-
-            for (int i = 0; i < attachments.Count; i++)
+            public Atom GetAtomForRigidbody(Rigidbody rb)
             {
-                var att = attachments[i];
-                int idx = i;
-                string lbl = $"{i+1}. {att.GetTargetName()} [{att.GetPresetName()}]";
-                attachmentUIElements.Add(CreateTextField(new JSONStorableString("info"+i, lbl), true));
+                Transform t = rb.transform;
+                while(t != null) {
+                    var a = t.GetComponent<Atom>();
+                    if (a != null) return a;
+                    t = t.parent;
+                }
+                return null;
+            }
 
-                var btn = CreateButton("Detach", true);
-                btn.buttonColor = new Color(1f, 0.5f, 0.5f);
-                btn.button.onClick.AddListener(()=> DetachSingle(idx));
-                attachmentUIElements.Add(btn);
+            public Rigidbody GetRigidbodyFromSelection(Atom atom, string name)
+            {
+                if (atom == null || string.IsNullOrEmpty(name)) return null;
+                var fc = atom.freeControllers.FirstOrDefault(c => c.name == name);
+                if (fc != null) {
+                    var rb = fc.GetComponent<Rigidbody>();
+                    return rb ? rb : fc.GetComponentInChildren<Rigidbody>();
+                }
+                return atom.GetComponentsInChildren<Rigidbody>().FirstOrDefault(r => r.name == name);
             }
         }
 
-        // --- PHYSICS ENGINE CLASSES (Kimowal - Unchanged) ---
+        /// <summary>
+        /// Visualizes the grab radius (View).
+        /// </summary>
+        public class ProximityVisualizer
+        {
+            private GameObject _root;
+            private LineRenderer _x, _y, _z;
 
+            public ProximityVisualizer(MonoBehaviour parent)
+            {
+                _root = new GameObject("ProximityVisuals");
+                _root.transform.SetParent(parent.transform, false);
+                _root.layer = LayerMask.NameToLayer("UI");
+                _x = CreateCircle(_root); _y = CreateCircle(_root); _z = CreateCircle(_root);
+            }
+
+            public void SetVisibility(bool v) => _root.SetActive(v);
+            public void Destroy() => UnityEngine.Object.Destroy(_root);
+
+            public void DrawSphere(Vector3 center, float r)
+            {
+                if (!_root.activeSelf) return;
+                DrawCircle(_x, center, r, Vector3.right, Vector3.up);
+                DrawCircle(_y, center, r, Vector3.up, Vector3.forward);
+                DrawCircle(_z, center, r, Vector3.forward, Vector3.right);
+            }
+
+            private void DrawCircle(LineRenderer lr, Vector3 c, float r, Vector3 a1, Vector3 a2)
+            {
+                for(int i=0; i<=32; i++) {
+                    float angle = (float)i/32f * Mathf.PI * 2f;
+                    lr.SetPosition(i, c + (Mathf.Cos(angle)*a1 + Mathf.Sin(angle)*a2) * r);
+                }
+            }
+
+            private LineRenderer CreateCircle(GameObject p)
+            {
+                var go = new GameObject("Circle"); go.transform.SetParent(p.transform, false); go.layer = p.layer;
+                var lr = go.AddComponent<LineRenderer>();
+                lr.useWorldSpace = true;
+                lr.widthMultiplier = 0.005f;
+                lr.positionCount = 33;
+                lr.material = new Material(Shader.Find("Sprites/Default")); // Simplified shader
+                lr.startColor = lr.endColor = new Color(0,1,0,0.5f);
+                return lr;
+            }
+        }
+
+        /// <summary>
+        /// A single physics joint connection (Domain Object).
+        /// </summary>
         public class PhysicsAttachment
         {
-            private Rigidbody sourceRB;
-            private Rigidbody targetRB;
-            private ConfigurableJoint joint;
-            private int preset;
-            private float blendSpeed;
-            private float currentBlend = 0f;
-            private bool isBlendingIn = true;
-            private bool isDetaching = false;
-            private bool positionOnly = false;
+            public GrabbingConfig Config;
+            public string SourceName, TargetName, TargetAtom;
+            public bool ReadyToDestroy => _isDetaching && _currentBlend <= 0f;
+
+            private Rigidbody _source, _target;
+            private ConfigurableJoint _joint;
+            private float _currentBlend = 0f;
+            private bool _isBlendingIn = true;
+            private bool _isDetaching = false;
             
-            private int attachmentMode = 0;
-            private bool useOffset = false;
-            private Vector3 offsetPosition = Vector3.zero;
-            private Quaternion offsetRotation = Quaternion.identity;
+            private bool _wasKinematic;
+            private Vector3 _offsetPos;
+            private Quaternion _offsetRot;
 
-            private string targetName;
-            private string targetAtom;
-
-            private static readonly float[] springValues = { 100f, 1000f, 10000f };
-            private static readonly float[] damperValues = { 10f, 100f, 1000f };
-            private static readonly float[] maxForceValues = { 1000f, 10000f, 1000000f };
-
-            private bool isPerfectFollow = false;
-            private bool wasKinematic = false;
-
-            public PhysicsAttachment(Rigidbody source, Rigidbody target, int presetType, float speed,
-                string srcAtom, string srcName, string tgtAtom, string tgtName, bool posOnly,
-                int mode, bool withOffset, string role, Vector3? savedPos, Quaternion? savedRot)
+            public PhysicsAttachment(Rigidbody src, Rigidbody tgt, GrabbingConfig cfg, 
+                string srcAtomName, string srcPart, string tgtAtomName, string tgtPart, 
+                Vector3? savedPos, Quaternion? savedRot)
             {
-                sourceRB = source;
-                targetRB = target;
-                preset = presetType;
-                blendSpeed = speed;
-                positionOnly = posOnly;
-                attachmentMode = mode;
-                useOffset = withOffset;
-                targetAtom = tgtAtom;
-                targetName = tgtName;
+                _source = src;
+                _target = tgt;
+                Config = cfg;
+                SourceName = srcPart;
+                TargetName = tgtPart;
+                TargetAtom = tgtAtomName;
 
-                if (useOffset && source != null && target != null)
+                if (Config.KeepOffset)
                 {
-                    if (savedPos.HasValue && savedRot.HasValue)
-                    {
-                        offsetPosition = savedPos.Value;
-                        offsetRotation = savedRot.Value;
-                    }
-                    else
-                    {
-                        offsetPosition = source.transform.InverseTransformPoint(target.transform.position);
-                        offsetRotation = Quaternion.Inverse(source.transform.rotation) * target.transform.rotation;
+                    if (savedPos.HasValue) { _offsetPos = savedPos.Value; _offsetRot = savedRot.Value; }
+                    else {
+                        _offsetPos = src.transform.InverseTransformPoint(tgt.transform.position);
+                        _offsetRot = Quaternion.Inverse(src.transform.rotation) * tgt.transform.rotation;
                     }
                 }
+                
                 CreateJoint();
             }
 
             private void CreateJoint()
             {
-                if (attachmentMode == 3 && targetRB != null) // Perfect Follow
+                if (Config.Mode == GrabMode.Perfect)
                 {
-                    isPerfectFollow = true;
-                    wasKinematic = targetRB.isKinematic;
-                    targetRB.isKinematic = true;
-                    currentBlend = 1f;
+                    _wasKinematic = _target.isKinematic;
+                    _target.isKinematic = true;
+                    _currentBlend = 1f;
                     return;
                 }
 
-                if (sourceRB == null || targetRB == null) return;
-
-                joint = sourceRB.gameObject.AddComponent<ConfigurableJoint>();
-                joint.connectedBody = targetRB;
-
-                if (useOffset)
-                {
-                    joint.anchor = offsetPosition;
-                    joint.targetRotation = offsetRotation;
-                    joint.configuredInWorldSpace = false;
-                }
-
-                joint.xMotion = ConfigurableJointMotion.Locked;
-                joint.yMotion = ConfigurableJointMotion.Locked;
-                joint.zMotion = ConfigurableJointMotion.Locked;
-
-                if (positionOnly)
-                {
-                    joint.angularXMotion = ConfigurableJointMotion.Free;
-                    joint.angularYMotion = ConfigurableJointMotion.Free;
-                    joint.angularZMotion = ConfigurableJointMotion.Free;
-                }
-                else
-                {
-                    joint.angularXMotion = ConfigurableJointMotion.Locked;
-                    joint.angularYMotion = ConfigurableJointMotion.Locked;
-                    joint.angularZMotion = ConfigurableJointMotion.Locked;
-                }
-
-                currentBlend = 0f;
-                UpdateJointParameters();
-            }
-
-            public void Update(float deltaTime)
-            {
-                if (isPerfectFollow && sourceRB != null && targetRB != null)
-                {
-                    Vector3 tPos = useOffset ? sourceRB.transform.TransformPoint(offsetPosition) : sourceRB.transform.position;
-                    Quaternion tRot = useOffset ? sourceRB.transform.rotation * offsetRotation : sourceRB.transform.rotation;
-                    targetRB.MovePosition(tPos);
-                    if (!positionOnly) targetRB.MoveRotation(tRot);
-                    return;
-                }
-
-                if (joint == null) return;
-
-                if (isBlendingIn && currentBlend < 1f)
-                {
-                    currentBlend += deltaTime * blendSpeed;
-                    if (currentBlend >= 1f) { currentBlend = 1f; isBlendingIn = false; }
-                    UpdateJointParameters();
-                }
-                else if (isDetaching && currentBlend > 0f)
-                {
-                    currentBlend -= deltaTime * blendSpeed;
-                    if (currentBlend <= 0f) currentBlend = 0f;
-                    UpdateJointParameters();
-                }
-            }
-
-            private void UpdateJointParameters()
-            {
-                if (joint == null) return;
-
-                float baseSpring = springValues[preset];
-                float baseDamper = damperValues[preset];
-                float baseForce = maxForceValues[preset];
-
-                float linS = baseSpring, linD = baseDamper, linF = baseForce;
-                float angS = baseSpring, angD = baseDamper, angF = baseForce;
-
-                if (attachmentMode == 0) { angS *= 0.3f; angD *= 0.5f; angF *= 0.5f; }
-                else if (attachmentMode == 1) { linD *= 1.2f; angD *= 1.2f; }
-                else if (attachmentMode == 2) { linS *= 0.4f; linD *= 0.6f; linF *= 0.7f; angS *= 0.4f; angD *= 0.6f; angF *= 0.7f; }
-
-                float spr = Mathf.Lerp(0f, linS, currentBlend);
-                float dmp = Mathf.Lerp(0f, linD, currentBlend);
-                float frc = Mathf.Lerp(0f, linF, currentBlend);
-
-                var drive = new JointDrive { positionSpring = spr, positionDamper = dmp, maximumForce = frc };
-                joint.xDrive = joint.yDrive = joint.zDrive = drive;
-
-                float aSpr = Mathf.Lerp(0f, angS, currentBlend);
-                float aDmp = Mathf.Lerp(0f, angD, currentBlend);
-                float aFrc = Mathf.Lerp(0f, angF, currentBlend);
+                _joint = _source.gameObject.AddComponent<ConfigurableJoint>();
+                _joint.connectedBody = _target;
                 
-                var aDrive = new JointDrive { positionSpring = aSpr, positionDamper = aDmp, maximumForce = aFrc };
-                joint.angularXDrive = joint.angularYZDrive = aDrive;
+                if (Config.KeepOffset) {
+                    _joint.anchor = _offsetPos;
+                    _joint.targetRotation = _offsetRot;
+                    _joint.configuredInWorldSpace = false;
+                }
+
+                _joint.xMotion = _joint.yMotion = _joint.zMotion = ConfigurableJointMotion.Locked;
+                var angMotion = Config.PositionOnly ? ConfigurableJointMotion.Free : ConfigurableJointMotion.Locked;
+                _joint.angularXMotion = _joint.angularYMotion = _joint.angularZMotion = angMotion;
+
+                _currentBlend = 0f;
+                UpdateDrive();
             }
 
-            public void BeginDetach() { isBlendingIn = false; isDetaching = true; }
-            public bool ReadyToDestroy() { return isDetaching && currentBlend <= 0f; }
-            public bool IsValid() { return joint != null || isPerfectFollow; }
-            public void Destroy()
+            public void Update(float dt)
             {
-                if (isPerfectFollow && targetRB != null) targetRB.isKinematic = wasKinematic;
-                if (joint != null) UnityEngine.Object.Destroy(joint);
-            }
-            public string GetTargetName() { return $"{targetAtom}/{targetName}"; }
-            public string GetPresetName() 
-            {
-                if (attachmentMode == 3) return "Perfect";
-                switch(preset) { case 0: return "Soft"; case 1: return "Firm"; case 2: return "Lock"; default: return "Unknown"; }
-            }
-            public Vector3 GetOffsetPosition() { return offsetPosition; }
-            public Quaternion GetOffsetRotation() { return offsetRotation; }
+                if (Config.Mode == GrabMode.Perfect) {
+                    if (_source == null || _target == null) return;
+                    // Manual Transform copy for "Perfect" mode
+                    Vector3 tsPos = Config.KeepOffset ? _source.transform.TransformPoint(_offsetPos) : _source.transform.position;
+                    Quaternion tsRot = Config.KeepOffset ? _source.transform.rotation * _offsetRot : _source.transform.rotation;
+                    _target.MovePosition(tsPos);
+                    if (!Config.PositionOnly) _target.MoveRotation(tsRot);
+                    return;
+                }
 
-            public JSONClass GetJSON() { return new JSONClass(); }
+                if (_joint == null) return;
+
+                if (_isBlendingIn) {
+                    _currentBlend += dt * Config.BlendSpeed;
+                    if (_currentBlend >= 1f) { _currentBlend = 1f; _isBlendingIn = false; }
+                    UpdateDrive();
+                }
+                else if (_isDetaching) {
+                    _currentBlend -= dt * Config.BlendSpeed;
+                    if (_currentBlend <= 0f) _currentBlend = 0f;
+                    UpdateDrive();
+                }
+            }
+
+            private void UpdateDrive()
+            {
+                if (_joint == null) return;
+                
+                // Kimowal's magic numbers
+                float spr = 1000f, dmp = 100f, frc = 10000f;
+                if (Config.Stiffness == Stiffness.Soft) { spr = 100f; dmp = 10f; frc = 1000f; }
+                else if (Config.Stiffness == Stiffness.Lock) { spr = 10000f; dmp = 1000f; frc = 1000000f; }
+
+                if (Config.Mode == GrabMode.Loose) { spr *= 0.4f; dmp *= 0.6f; }
+
+                float curSpr = Mathf.Lerp(0, spr, _currentBlend);
+                float curDmp = Mathf.Lerp(0, dmp, _currentBlend);
+                float curFrc = Mathf.Lerp(0, frc, _currentBlend);
+
+                var drv = new JointDrive { positionSpring=curSpr, positionDamper=curDmp, maximumForce=curFrc };
+                _joint.xDrive = _joint.yDrive = _joint.zDrive = drv;
+                _joint.angularXDrive = _joint.angularYZDrive = drv;
+            }
+
+            public void BeginDetach() { _isBlendingIn = false; _isDetaching = true; }
+            public void Destroy() {
+                if (Config.Mode == GrabMode.Perfect && _target != null) _target.isKinematic = _wasKinematic;
+                if (_joint != null) UnityEngine.Object.Destroy(_joint);
+            }
+            public bool IsValid() => _joint != null || Config.Mode == GrabMode.Perfect;
+            
+            public Vector3 GetOffsetPosition() => _offsetPos;
+            public Quaternion GetOffsetRotation() => _offsetRot;
         }
 
         public class OffsetMemory
         {
-            public Vector3 position;
-            public Quaternion rotation;
-            public OffsetMemory(Vector3 p, Quaternion r) { position = p; rotation = r; }
+            public Vector3 Position;
+            public Quaternion Rotation;
+            public OffsetMemory(Vector3 p, Quaternion r) { Position = p; Rotation = r; }
         }
-    }
-    /// <summary>
-    /// Handles all visual debug elements (LineRenderers, etc)
-    /// </summary>
-    public class ProximityVisualizer
-    {
-        private GameObject _visualsRoot;
-        private LineRenderer _circleX;
-        private LineRenderer _circleY;
-        private LineRenderer _circleZ;
-
-        public ProximityVisualizer(MonoBehaviour parent)
-        {
-            try 
-            {
-                _visualsRoot = new GameObject("ProximityGrab_Visuals");
-                _visualsRoot.transform.SetParent(parent.transform, false);
-                // Important: UI layer ensures it renders on top of stuff usually, or at least consistently
-                _visualsRoot.layer = LayerMask.NameToLayer("UI"); 
-
-                // Create 3 circles for the sphere wireframe
-                _circleX = CreateCircleLiner(_visualsRoot, "CircleX");
-                _circleY = CreateCircleLiner(_visualsRoot, "CircleY");
-                _circleZ = CreateCircleLiner(_visualsRoot, "CircleZ");
-            }
-            catch (Exception e)
-            {
-                SuperController.LogError("ProximityVisualizer setup failed: " + e);
-            }
-        }
-
-        public void SetVisibility(bool visible)
-        {
-            if (_visualsRoot != null && _visualsRoot.activeSelf != visible)
-                _visualsRoot.SetActive(visible);
-        }
-
-        public void DrawSphere(Vector3 center, float radius)
-        {
-            if (_visualsRoot == null || !_visualsRoot.activeSelf) return;
-
-            UpdateCircle(_circleX, center, radius, Vector3.right, Vector3.up); // XY plane
-            UpdateCircle(_circleY, center, radius, Vector3.up, Vector3.forward); // YZ plane
-            UpdateCircle(_circleZ, center, radius, Vector3.forward, Vector3.right); // ZX plane
-        }
-
-        public void Destroy()
-        {
-            if (_visualsRoot != null) UnityEngine.Object.Destroy(_visualsRoot);
-        }
-
-        private void UpdateCircle(LineRenderer lr, Vector3 center, float radius, Vector3 axis1, Vector3 axis2)
-        {
-            if (lr == null) return;
-            int segments = 32;
-            for (int i = 0; i <= segments; i++)
-            {
-                float angle = (float)i / segments * Mathf.PI * 2f;
-                Vector3 pos = center + (Mathf.Cos(angle) * axis1 + Mathf.Sin(angle) * axis2) * radius;
-                lr.SetPosition(i, pos);
-            }
-        }
-
-        private LineRenderer CreateCircleLiner(GameObject parent, string name)
-        {
-            GameObject go = new GameObject(name);
-            go.transform.SetParent(parent.transform, false);
-            go.layer = LayerMask.NameToLayer("UI");
-            
-            LineRenderer lr = go.AddComponent<LineRenderer>();
-            lr.useWorldSpace = true;
-            
-            // Robust Shader Finding
-            Shader sh = Shader.Find("Hidden/Internal-Colored");
-            if (sh == null) sh = Shader.Find("GUI/Text Shader");
-            if (sh == null) sh = Shader.Find("Sprites/Default");
-            if (sh == null) sh = Shader.Find("Diffuse");
-
-            if (sh != null)
-            {
-                Material mat = new Material(sh);
-                mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-                mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-                mat.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
-                mat.SetInt("_ZTest", (int)UnityEngine.Rendering.CompareFunction.Always);
-                mat.SetInt("_ZWrite", 0);
-                mat.renderQueue = 4000;
-
-                lr.material = mat;
-                lr.startColor = new Color(0f, 1f, 0f, 0.5f);
-                lr.endColor = new Color(0f, 1f, 0f, 0.5f);
-                lr.startWidth = 0.005f;
-                lr.endWidth = 0.005f;
-                lr.positionCount = 33; // 32 segments + 1 to close loop
-                lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                lr.receiveShadows = false;
-                lr.loop = true;
-            }
-            return lr;
-        }
-    }
-
-    /// <summary>
-    /// Handles finding valid targets in range (Scanning logic)
-    /// </summary>
-    public class ProximityScanner
-    {
-        private Action<string> _logger;
-
-        public ProximityScanner(Action<string> logMethod)
-        {
-            _logger = logMethod;
-        }
-
-        public Rigidbody ScanForTarget(Vector3 center, float radius, Atom sourceAtom, Rigidbody sourceRB, bool debug)
-        {
-            var hits = Physics.OverlapSphere(center, radius);
-            if (hits.Length == 0) return null;
-            
-            // Sort by distance to center
-            Array.Sort(hits, (x, y) => {
-                float dX = Vector3.SqrMagnitude(x.transform.position - center);
-                float dY = Vector3.SqrMagnitude(y.transform.position - center);
-                return dX.CompareTo(dY);
-            });
-
-            foreach (var hit in hits)
-            {
-                Rigidbody rb = hit.attachedRigidbody;
-                if (rb == null) continue;
-
-                if (IsValidTarget(rb, sourceAtom, sourceRB, debug))
-                    return rb;
-            }
-            return null;
-        }
-
-        private bool IsValidTarget(Rigidbody rb, Atom sourceAtom, Rigidbody sourceRB, bool debug)
-        {
-            // 1. Self-Grab check
-            if (rb == sourceRB)
-            {
-                if (debug) _logger?.Invoke($"ProximityGrab: Ignored {rb.name} (Origin RB)");
-                return false;
-            }
-
-            // 2. Parent-Grab check (Prevent grabbing the object we are attached/linked to)
-            Atom parentAtom = GetLinkedParentAtom(sourceAtom);
-            if (parentAtom == null) return true;
-
-            Atom hitAtom = GetAtomForRigidbody(rb);
-            if (hitAtom == parentAtom)
-            {
-                if (debug) _logger?.Invoke($"ProximityGrab: Ignored {rb.name} (Linked Parent: {parentAtom.uid})");
-                return false;
-            }
-
-            return true;
-        }
-
-        private Atom GetLinkedParentAtom(Atom sourceAtom)
-        {
-            if (sourceAtom == null || sourceAtom.mainController == null) return null;
-            
-            var linkTo = sourceAtom.mainController.linkToRB;
-            if (linkTo == null) return null;
-
-            return GetAtomForRigidbody(linkTo);
-        }
-
-        public Atom GetAtomForRigidbody(Rigidbody rb)
-        {
-            // Optimized traversal
-            Transform t = rb.transform;
-            while (t != null)
-            {
-                var atom = t.GetComponent<Atom>();
-                if (atom != null) return atom;
-                t = t.parent;
-            }
-            return null;
-        }
-    }
     }
 }
