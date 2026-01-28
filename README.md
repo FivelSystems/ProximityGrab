@@ -1,6 +1,6 @@
 # Proximity Grab for Virt-A-Mate
 ![License](https://img.shields.io/badge/License-CC_BY--SA_4.0-lightgrey.svg)
-![Version](https://img.shields.io/badge/Version-v2-blue.svg)
+![Version](https://img.shields.io/badge/Version-v3-blue.svg)
 [![Support](https://img.shields.io/badge/Support-Buy_Me_A_Coffee-orange.svg)](https://buymeacoffee.com/fivelsystems)
 
 **Proximity Grab** allows you to grab onto other objects (Atoms) simply by being near them and activating a trigger. It uses physics joints to create stable, customizable attachments, perfect for "gluing" hands to hips, holding props, or creating dynamic interactions without complex parenting.
@@ -14,6 +14,7 @@
 *   ⚙️ **Real-Time Physics**: Adjust Stiffness (Soft/Firm/Lock) and Modes (Grab/Glue/Follow) on the fly without re-grabbing.
 *   🌊 **Fluid Blending**: Smooth transitions when attaching and detaching objects.
 *   🔧 **Power User Tools**: Toggle support for grabbing Triggers or internal MeshJoints.
+*   🛑 **Kinematic Control**: "Grab Kinematic" toggle to avoid grabbing static objects.
 
 ## 🚀 Installation
 1.  Download the `ProximityGrab.var` package (or `.cs` file).
@@ -63,6 +64,7 @@ This project is licensed under **CC BY-SA 4.0**.
 [*] 👁️ [b]Visual Feedback[/b]: Green sphere = Scanning, Blue sphere = Holding.
 [*] 🧠 [b]Smart Filtering[/b]: Safely ignores internal Physics artifacts.
 [*] ⚙️ [b]Customizable Physics[/b]: Presets for Stiffness and Modes.
+[*] 🛑 [b]Kinematic Control[/b]: Prevent grabbing static objects.
 [/list]
 
 [size=4][b]Credits[/b][/size]

@@ -22,6 +22,7 @@ namespace FivelSystems
         private JSONStorableStringChooser originChooser;
         private JSONStorableBool grabMeshJoints;
         private JSONStorableBool grabTriggers;
+        private JSONStorableBool grabKinematic;
         private JSONStorableBool grabRigidbodies;
         private UIDynamicTextField statusUI;
 
@@ -44,7 +45,7 @@ namespace FivelSystems
             try
             {
                 // ================= LEFT COLUMN (Actions & Origin) =================
-                pluginLabelJSON.val = "ProximityGrab v2";
+                pluginLabelJSON.val = "ProximityGrab v3";
 
                 // 1. Origin Chooser (Top Priority)
                 originChooser = new JSONStorableStringChooser("Grab Origin", new List<string>(), "", "Grab Origin");
@@ -98,6 +99,10 @@ namespace FivelSystems
                 grabMeshJoints = new JSONStorableBool("Grab MeshJoints", false);
                 RegisterBool(grabMeshJoints);
                 CreateToggle(grabMeshJoints);
+
+                grabKinematic = new JSONStorableBool("Grab Kinematic", false);
+                RegisterBool(grabKinematic);
+                CreateToggle(grabKinematic);
 
                 // ================= RIGHT COLUMN (Settings) =================
 
@@ -262,10 +267,11 @@ namespace FivelSystems
             Collider[] hits = Physics.OverlapSphere(center, r, layerMask, queryTrigger);
 
             // Sort by distance
+            // Sort by distance (Closest Point on Collider)
             Array.Sort(hits, (a, b) =>
             {
-                float da = (a.transform.position - center).sqrMagnitude;
-                float db = (b.transform.position - center).sqrMagnitude;
+                float da = (a.ClosestPoint(center) - center).sqrMagnitude;
+                float db = (b.ClosestPoint(center) - center).sqrMagnitude;
                 return da.CompareTo(db);
             });
 
@@ -278,6 +284,10 @@ namespace FivelSystems
 
                 // Filters
                 bool isMeshJoint = rb.name.Contains("PhysicsMeshJoint");
+
+                // Kinematic Check
+                if (rb.isKinematic && !grabKinematic.val) continue;
+
                 if (isMeshJoint && !grabMeshJoints.val) continue;
                 if (hit.isTrigger && !grabTriggers.val && !isMeshJoint) continue; // Basic trigger check logic backup
                 if (!isMeshJoint && !hit.isTrigger && !grabRigidbodies.val) continue;
